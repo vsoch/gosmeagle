@@ -159,8 +159,10 @@ func (f *goobjFile) symbols() ([]Sym, error) {
 			continue // not a real symbol
 		}
 		name := osym.Name(r)
+		fmt.Println(name)
 		ver := osym.ABI()
 		name = goobjName(name, abiToVer(ver))
+		fmt.Println(name)
 		typ := objabi.SymKind(osym.Type())
 		var code rune = '?'
 		switch typ {

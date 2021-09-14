@@ -26,6 +26,29 @@ func openElf(r io.ReaderAt) (rawFile, error) {
 	return &elfFile{f}, nil
 }
 
+// get Symbol Type from a s.Info, which also can derive the binding
+// https://refspecs.linuxfoundation.org/elf/elf.pdf section 1-18
+func getSymbolType(s elf.Symbol) string {
+	symType := int(s.Info) & 0xf
+
+	// Return a human friendly string (this is what Type expects)
+	switch symType {
+	case 0:
+		return "STT_NOTYPE"
+	case 1:
+		return "STT_OBJECT"
+	case 2:
+		return "STT_FUNC"
+	case 4:
+		return "STT_FILE"
+	case 13:
+		return "STT_LOPROC"
+	case 15:
+		return "STT_HIPROC"
+	}
+	return "UNKNOWN"
+}
+
 func (f *elfFile) symbols() ([]Sym, error) {
 	elfSyms, err := f.elf.Symbols()
 	if err != nil {
@@ -34,7 +57,10 @@ func (f *elfFile) symbols() ([]Sym, error) {
 
 	var syms []Sym
 	for _, s := range elfSyms {
-		sym := Sym{Addr: s.Value, Name: s.Name, Size: int64(s.Size), Code: '?'}
+
+		// Convert the s.Info (we can use to calculate binding and type) to unsigned int, then string
+		symType := getSymbolType(s)
+		sym := Sym{Addr: s.Value, Type: symType, Name: s.Name, Size: int64(s.Size), Code: '?'}
 		switch s.Section {
 		case elf.SHN_UNDEF:
 			sym.Code = 'U'
