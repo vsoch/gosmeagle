@@ -15,24 +15,21 @@ $ go run main.go parse gosmeagle
 ```
 ```
 ...
-Name: runtime.memstats
-Address: 7456096
-Size: 15312
-Code: 68
-Type: 
-Relocs: []
 Name: runtime.end
-Address: 7471408
+Address: 7475504
 Size: 0
 Code: 100
-Type: 
+Type: STT_OBJECT
+Binding: STB_LOCAL
 Relocs: []
 Name: runtime.enoptrbss
-Address: 7471408
+Address: 7475504
 Size: 0
 Code: 100
-Type: 
+Type: STT_OBJECT
+Binding: STB_LOCAL
 Relocs: []
 ```
 
-I'm not sure why there isn't output for Type, [here](https://cs.opensource.google/go/go/+/refs/tags/go1.17.1:src/cmd/internal/objfile/objfile.go;l=44;drc=refs%2Ftags%2Fgo1.17.1). I am next going to look at the DWARF.
+Note that I added parsing of the Type and Binding. I think I'm going to pull out using just the Dwarf wrapper and remove the internal code that isn't supposed to be accessible :)
+See discussion in [this thread](https://twitter.com/vsoch/status/1437535961131352065) for the discovery of the missing variables. 

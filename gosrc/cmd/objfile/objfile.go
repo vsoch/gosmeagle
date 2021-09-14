@@ -36,12 +36,13 @@ type Entry struct {
 
 // A Sym is a symbol defined in an executable file.
 type Sym struct {
-	Name   string  // symbol name
-	Addr   uint64  // virtual address of symbol
-	Size   int64   // size in bytes
-	Code   rune    // nm code (T for text, D for data, and so on)
-	Type   string  // XXX?
-	Relocs []Reloc // in increasing Addr order
+	Name    string  // symbol name
+	Addr    uint64  // virtual address of symbol
+	Size    int64   // size in bytes
+	Code    rune    // nm code (T for text, D for data, and so on)
+	Type    string  // string of type calculated from s.Info
+	Binding string  // binding calculated from s.Info
+	Relocs  []Reloc // in increasing Addr order
 }
 
 type Reloc struct {

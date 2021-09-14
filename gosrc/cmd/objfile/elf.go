@@ -49,6 +49,24 @@ func getSymbolType(s elf.Symbol) string {
 	return "UNKNOWN"
 }
 
+// get Symbol Binding from s.Info
+func getSymbolBinding(s elf.Symbol) string {
+	binding := s.Info >> 4
+	switch binding {
+	case 0:
+		return "STB_LOCAL"
+	case 1:
+		return "STB_GLOBAL"
+	case 2:
+		return "STB_WEAK"
+	case 13:
+		return "STB_LOPROC"
+	case 15:
+		return "STB_HIPROC"
+	}
+	return "UNKNOWN"
+}
+
 func (f *elfFile) symbols() ([]Sym, error) {
 	elfSyms, err := f.elf.Symbols()
 	if err != nil {
@@ -60,7 +78,8 @@ func (f *elfFile) symbols() ([]Sym, error) {
 
 		// Convert the s.Info (we can use to calculate binding and type) to unsigned int, then string
 		symType := getSymbolType(s)
-		sym := Sym{Addr: s.Value, Type: symType, Name: s.Name, Size: int64(s.Size), Code: '?'}
+		binding := getSymbolBinding(s)
+		sym := Sym{Addr: s.Value, Type: symType, Binding: binding, Name: s.Name, Size: int64(s.Size), Code: '?'}
 		switch s.Section {
 		case elf.SHN_UNDEF:
 			sym.Code = 'U'

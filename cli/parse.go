@@ -52,6 +52,7 @@ func RunParser(r *cmd.Root, c *cmd.Sub) {
 			fmt.Println("Size:", symbol.Size)
 			fmt.Println("Code:", symbol.Code)
 			fmt.Println("Type:", symbol.Type)
+			fmt.Println("Binding:", symbol.Binding)
 			fmt.Println("Relocs:", symbol.Relocs)
 		}
 	}
