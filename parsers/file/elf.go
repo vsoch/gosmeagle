@@ -1,10 +1,4 @@
-// Copyright 2013 The Go Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
-
-// Parsing of ELF executables (Linux, FreeBSD, and so on).
-
-package objfile
+package file
 
 import (
 	"debug/dwarf"
@@ -14,19 +8,19 @@ import (
 	"io"
 )
 
-type elfFile struct {
+type ElfFile struct {
 	elf *elf.File
 }
 
-func openElf(r io.ReaderAt) (rawFile, error) {
+func OpenElf(r io.ReaderAt) (rawFile, error) {
 	f, err := elf.NewFile(r)
 	if err != nil {
 		return nil, err
 	}
-	return &elfFile{f}, nil
+	return &ElfFile{f}, nil
 }
 
-// get Symbol Type from a s.Info, which also can derive the binding
+// getSymbolType from a s.Info, which also can derive the binding
 // https://refspecs.linuxfoundation.org/elf/elf.pdf section 1-18
 func getSymbolType(s elf.Symbol) string {
 	symType := int(s.Info) & 0xf
@@ -49,7 +43,7 @@ func getSymbolType(s elf.Symbol) string {
 	return "UNKNOWN"
 }
 
-// get Symbol Binding from s.Info
+// getSymbolBinding from s.Info
 func getSymbolBinding(s elf.Symbol) string {
 	binding := s.Info >> 4
 	switch binding {
@@ -67,49 +61,61 @@ func getSymbolBinding(s elf.Symbol) string {
 	return "UNKNOWN"
 }
 
-func (f *elfFile) symbols() ([]Sym, error) {
-	elfSyms, err := f.elf.Symbols()
+// setSymbolCode for the symbol and file
+func setSymbolCode(s *elf.Symbol, symbol *Symbol, f *ElfFile) {
+
+	switch s.Section {
+	case elf.SHN_UNDEF:
+		symbol.Code = 'U'
+	case elf.SHN_COMMON:
+		symbol.Code = 'B'
+	default:
+		i := int(s.Section)
+		if i < 0 || i >= len(f.elf.Sections) {
+			break
+		}
+		sect := f.elf.Sections[i]
+		switch sect.Flags & (elf.SHF_WRITE | elf.SHF_ALLOC | elf.SHF_EXECINSTR) {
+		case elf.SHF_ALLOC | elf.SHF_EXECINSTR:
+			symbol.Code = 'T'
+		case elf.SHF_ALLOC:
+			symbol.Code = 'R'
+		case elf.SHF_ALLOC | elf.SHF_WRITE:
+			symbol.Code = 'D'
+		}
+	}
+	if elf.ST_BIND(s.Info) == elf.STB_LOCAL {
+		symbol.Code += 'a' - 'A'
+	}
+}
+
+// Get dynamic symbols for the elf file
+func (f *ElfFile) Symbols() ([]Symbol, error) {
+	elfSyms, err := f.elf.DynamicSymbols()
 	if err != nil {
 		return nil, err
 	}
 
-	var syms []Sym
+	var syms []Symbol
 	for _, s := range elfSyms {
 
 		// Convert the s.Info (we can use to calculate binding and type) to unsigned int, then string
 		symType := getSymbolType(s)
 		binding := getSymbolBinding(s)
-		sym := Sym{Addr: s.Value, Type: symType, Binding: binding, Name: s.Name, Size: int64(s.Size), Code: '?'}
-		switch s.Section {
-		case elf.SHN_UNDEF:
-			sym.Code = 'U'
-		case elf.SHN_COMMON:
-			sym.Code = 'B'
-		default:
-			i := int(s.Section)
-			if i < 0 || i >= len(f.elf.Sections) {
-				break
-			}
-			sect := f.elf.Sections[i]
-			switch sect.Flags & (elf.SHF_WRITE | elf.SHF_ALLOC | elf.SHF_EXECINSTR) {
-			case elf.SHF_ALLOC | elf.SHF_EXECINSTR:
-				sym.Code = 'T'
-			case elf.SHF_ALLOC:
-				sym.Code = 'R'
-			case elf.SHF_ALLOC | elf.SHF_WRITE:
-				sym.Code = 'D'
-			}
-		}
-		if elf.ST_BIND(s.Info) == elf.STB_LOCAL {
-			sym.Code += 'a' - 'A'
-		}
-		syms = append(syms, sym)
+
+		// Assume to start we don't know the code
+		symbol := Symbol{Address: s.Value, Type: symType, Binding: binding,
+			Name: s.Name, Size: int64(s.Size), Code: '?'}
+
+		// Add the correct code for the symbol
+		setSymbolCode(&s, &symbol, f)
+		syms = append(syms, symbol)
 	}
 
 	return syms, nil
 }
 
-func (f *elfFile) pcln() (textStart uint64, symtab, pclntab []byte, err error) {
+/*func (f *elfFile) pcln() (textStart uint64, symtab, pclntab []byte, err error) {
 	if sect := f.elf.Section(".text"); sect != nil {
 		textStart = sect.Addr
 	}
@@ -124,9 +130,10 @@ func (f *elfFile) pcln() (textStart uint64, symtab, pclntab []byte, err error) {
 		}
 	}
 	return textStart, symtab, pclntab, nil
-}
+}*/
 
-func (f *elfFile) text() (textStart uint64, text []byte, err error) {
+// Return text section of the ELF file
+func (f *ElfFile) text() (textStart uint64, text []byte, err error) {
 	sect := f.elf.Section(".text")
 	if sect == nil {
 		return 0, nil, fmt.Errorf("text section not found")
@@ -136,7 +143,8 @@ func (f *elfFile) text() (textStart uint64, text []byte, err error) {
 	return
 }
 
-func (f *elfFile) goarch() string {
+// GoArch returns the architecture of the elf file
+func (f *ElfFile) GoArch() string {
 	switch f.elf.Machine {
 	case elf.EM_386:
 		return "386"
@@ -157,7 +165,8 @@ func (f *elfFile) goarch() string {
 	return ""
 }
 
-func (f *elfFile) loadAddress() (uint64, error) {
+// loadAddress returns the load address
+func (f *ElfFile) loadAddress() (uint64, error) {
 	for _, p := range f.elf.Progs {
 		if p.Type == elf.PT_LOAD && p.Flags&elf.PF_X != 0 {
 			return p.Vaddr, nil
@@ -166,6 +175,6 @@ func (f *elfFile) loadAddress() (uint64, error) {
 	return 0, fmt.Errorf("unknown load address")
 }
 
-func (f *elfFile) dwarf() (*dwarf.Data, error) {
+func (f *ElfFile) Dwarf() (*dwarf.Data, error) {
 	return f.elf.DWARF()
 }
