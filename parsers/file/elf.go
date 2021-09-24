@@ -1,15 +1,25 @@
 package file
 
 import (
-	"debug/dwarf"
-	"debug/elf"
 	"encoding/binary"
 	"fmt"
+	"github.com/vsoch/gosmeagle/pkg/debug/dwarf"
+	"github.com/vsoch/gosmeagle/pkg/debug/elf"
 	"io"
+	"log"
 )
 
 type ElfFile struct {
 	elf *elf.File
+}
+
+// Parse dwarf into the file object
+func (f *ElfFile) ParseDwarf() {
+	dwf, err := f.Dwarf()
+	if err != nil {
+		log.Fatalf("Error parsing dwarf %v", err)
+	}
+	ParseDwarf(dwf)
 }
 
 func OpenElf(r io.ReaderAt) (rawFile, error) {
@@ -18,6 +28,54 @@ func OpenElf(r io.ReaderAt) (rawFile, error) {
 		return nil, err
 	}
 	return &ElfFile{f}, nil
+}
+
+// An Elf Symbol found in a file (e.g., ELF?)
+type ElfSymbol struct {
+	Name        string       // symbol name
+	Address     uint64       // virtual address of symbol
+	Size        int64        // size in bytes
+	Code        rune         // nm code (T for text, D for data, and so on)
+	Type        string       // string of type calculated from s.Info
+	Binding     string       // binding calculated from s.Info
+	Relocations []Relocation // in increasing Addr order
+	Original    elf.Symbol   // hold the original symbol
+}
+
+// And functions required for an elf symbol
+func (s *ElfSymbol) GetName() string {
+	return s.Name
+}
+
+func (s *ElfSymbol) GetAddress() uint64 {
+	return s.Address
+}
+
+func (s *ElfSymbol) GetSize() int64 {
+	return s.Size
+}
+
+func (s *ElfSymbol) GetCode() rune {
+	return s.Code
+}
+
+func (s *ElfSymbol) GetType() string {
+	return s.Type
+}
+
+func (s *ElfSymbol) GetBinding() string {
+	return s.Binding
+}
+
+func (s *ElfSymbol) GetRelocations() []Relocation {
+	return s.Relocations
+}
+
+func (s *ElfSymbol) GetOriginal() interface{} {
+	return s.Original
+}
+
+func (s *ElfSymbol) GetParams() {
 }
 
 // getSymbolType from a s.Info, which also can derive the binding
@@ -62,7 +120,7 @@ func getSymbolBinding(s elf.Symbol) string {
 }
 
 // setSymbolCode for the symbol and file
-func setSymbolCode(s *elf.Symbol, symbol *Symbol, f *ElfFile) {
+func setSymbolCode(s *elf.Symbol, symbol *ElfSymbol, f *ElfFile) {
 
 	switch s.Section {
 	case elf.SHN_UNDEF:
@@ -96,6 +154,8 @@ func (f *ElfFile) Symbols() ([]Symbol, error) {
 		return nil, err
 	}
 
+	// TODO look up imported symbols to give direction
+	// https://cs.opensource.google/go/go/+/master:src/debug/elf/file.go;l=1285?q=DynamicSymbols&ss=go%2Fgo
 	var syms []Symbol
 	for _, s := range elfSyms {
 
@@ -104,12 +164,12 @@ func (f *ElfFile) Symbols() ([]Symbol, error) {
 		binding := getSymbolBinding(s)
 
 		// Assume to start we don't know the code
-		symbol := Symbol{Address: s.Value, Type: symType, Binding: binding,
-			Name: s.Name, Size: int64(s.Size), Code: '?'}
+		symbol := ElfSymbol{Address: s.Value, Type: symType, Binding: binding,
+			Name: s.Name, Size: int64(s.Size), Code: '?', Original: s}
 
 		// Add the correct code for the symbol
 		setSymbolCode(&s, &symbol, f)
-		syms = append(syms, symbol)
+		syms = append(syms, &symbol)
 	}
 
 	return syms, nil

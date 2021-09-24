@@ -7,10 +7,11 @@ package file
 import (
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"sort"
 
-	"debug/dwarf"
+	"github.com/vsoch/gosmeagle/pkg/debug/dwarf"
 	//	"debug/gosym"
 )
 
@@ -30,6 +31,7 @@ type Entry struct {
 // Each of these functions needs to be defined for the specific file
 type rawFile interface {
 	Dwarf() (*dwarf.Data, error)
+	ParseDwarf()
 	GoArch() string
 	//	pcln() (textStart uint64, symtab, pclntab []byte, err error)
 	loadAddress() (uint64, error)
@@ -47,16 +49,17 @@ func (e *Entry) Dwarf() (*dwarf.Data, error) {
 	return e.data.Dwarf()
 }
 
-// A Symbol found in a file (e.g., ELF?)
-type Symbol struct {
-	Name            string       // symbol name
-	Address         uint64       // virtual address of symbol
-	Size            int64        // size in bytes
-	Code            rune         // nm code (T for text, D for data, and so on)
-	Type            string       // string of type calculated from s.Info
-	Binding         string       // binding calculated from s.Info
-	Relocations     []Relocation // in increasing Addr order
-	IsDynamicSymbol bool         // Is it in the dynamic symbol table (might be for elf only?)
+// A raw symbol provides extra functions for interaction
+type Symbol interface {
+	GetName() string    // symbol name
+	GetAddress() uint64 // virtual address of symbol
+	GetSize() int64     // size in bytes
+	GetCode() rune      // nm code (T for text, D for data, and so on)
+	GetType() string    // string of type calculated from s.Info
+	GetBinding() string // binding calculated from s.Info
+	GetRelocations() []Relocation
+	GetOriginal() interface{}
+	GetParams()
 }
 
 type Relocation struct {
@@ -133,6 +136,14 @@ func (f *File) Disasm() (*Disasm, error) {
 // Since this returns the top node (root), it returns all the dwarf
 func (f *File) DWARF() (*dwarf.Data, error) {
 	return f.Entries[0].Dwarf()
+}
+
+func (f *File) ParseDwarf() {
+	dwf, err := f.Entries[0].Dwarf()
+	if err != nil {
+		log.Fatalf("Error parsing dwarf %v", err)
+	}
+	ParseDwarf(dwf)
 }
 
 func (e *Entry) Symbols() ([]Symbol, error) {

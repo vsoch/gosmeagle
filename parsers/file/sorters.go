@@ -4,7 +4,7 @@ package file
 type SortByAddress []Symbol
 
 func (x SortByAddress) Less(i, j int) bool {
-	return x[i].Address < x[j].Address
+	return x[i].GetAddress() < x[j].GetAddress()
 }
 
 // Length returns the number of symbols in the sorter

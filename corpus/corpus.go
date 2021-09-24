@@ -1,8 +1,6 @@
 package corpus
 
 import (
-	"debug/dwarf"
-//	"encoding/json"
 	"fmt"
 	"github.com/vsoch/gosmeagle/descriptor"
 	"github.com/vsoch/gosmeagle/parsers/file"
@@ -35,6 +33,9 @@ func GetCorpus(filename string) Corpus {
 
 func (c *Corpus) Parse(f *file.File) {
 
+	// Parse dwarf for each entry to use
+	f.ParseDwarf()
+
 	// Parse entries based on type (function or variable)
 	for _, e := range f.Entries {
 
@@ -46,7 +47,7 @@ func (c *Corpus) Parse(f *file.File) {
 		for _, symbol := range symbols {
 
 			// If we have a function, parse function
-			if symbol.Type == "STT_FUNC" {
+			if symbol.GetType() == "STT_FUNC" {
 				c.parseFunction(f, symbol)
 			}
 
@@ -60,27 +61,13 @@ func (c *Corpus) Parse(f *file.File) {
 			//fmt.Println("Binding:", symbol.Binding)
 			//fmt.Println("Relocs:", symbol.Relocations)
 		}
-
-		dwf, err := e.Dwarf()
-		rdr := dwf.Reader()
-		for entry, err := rdr.Next(); entry != nil; entry, err = rdr.Next() {
-			if err != nil {
-				log.Fatalf("error reading DWARF: %v", err)
-			}
-			switch entry.Tag {
-			case dwarf.TagTypedef:
-				if _, ok := entry.Val(dwarf.AttrName).(string); ok {
-					//fmt.Println(name)
-				}
-			}
-		}
 	}
 }
 
 // parse a dynamic function symbol
 func (c *Corpus) parseFunction(f *file.File, symbol file.Symbol) {
 
-	fmt.Println(symbol)
+	//fmt.Println(symbol)
 	switch f.GoArch() {
 	case "amd64":
 		{
@@ -99,39 +86,3 @@ func (c *Corpus) ToJson() {
 	//output := string(outJson)
 	//fmt.Println(output)
 }
-
-/* parse a function for parameters and abi location
-void Corpus::parseFunctionABILocation(Dyninst::SymtabAPI::Symbol *symbol,
-                                      Dyninst::Architecture arch) {
-  switch (arch) {
-    case Dyninst::Architecture::Arch_x86_64:
-
-
-      break;
-    case Dyninst::Architecture::Arch_aarch64:
-      break;
-    case Dyninst::Architecture::Arch_ppc64:
-      break;
-    default:
-      throw std::runtime_error{"Unsupported architecture: " + std::to_string(arch)};
-      break;
-  }
-}
-
-// parse a variable (global) for parameters and abi location
-void Corpus::parseVariableABILocation(Dyninst::SymtabAPI::Symbol *symbol,
-                                      Dyninst::Architecture arch) {
-  switch (arch) {
-    case Dyninst::Architecture::Arch_x86_64:
-      variables.emplace_back(x86_64::parse_variable(symbol));
-      break;
-    case Dyninst::Architecture::Arch_aarch64:
-      break;
-    case Dyninst::Architecture::Arch_ppc64:
-      break;
-    default:
-      throw std::runtime_error{"Unsupported architecture: " + std::to_string(arch)};
-      break;
-  }
-}
-}*/
