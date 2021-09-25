@@ -14,12 +14,12 @@ type ElfFile struct {
 }
 
 // Parse dwarf into the file object
-func (f *ElfFile) ParseDwarf() {
+func (f *ElfFile) ParseDwarf() map[string]map[string]DwarfEntry {
 	dwf, err := f.Dwarf()
 	if err != nil {
 		log.Fatalf("Error parsing dwarf %v", err)
 	}
-	ParseDwarf(dwf)
+	return ParseDwarf(dwf)
 }
 
 func OpenElf(r io.ReaderAt) (rawFile, error) {
@@ -45,6 +45,16 @@ type ElfSymbol struct {
 // And functions required for an elf symbol
 func (s *ElfSymbol) GetName() string {
 	return s.Name
+}
+
+// GetDirection determines if we have import/export based on definition
+func (s *ElfSymbol) GetDirection() string {
+	// imports are undefined (U)
+	direction := "export"
+	if s.GetCode() == 'U' {
+		direction = "import"
+	}
+	return direction
 }
 
 func (s *ElfSymbol) GetAddress() uint64 {
@@ -73,9 +83,6 @@ func (s *ElfSymbol) GetRelocations() []Relocation {
 
 func (s *ElfSymbol) GetOriginal() interface{} {
 	return s.Original
-}
-
-func (s *ElfSymbol) GetParams() {
 }
 
 // getSymbolType from a s.Info, which also can derive the binding

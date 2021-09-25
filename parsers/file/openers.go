@@ -31,7 +31,7 @@ type Entry struct {
 // Each of these functions needs to be defined for the specific file
 type rawFile interface {
 	Dwarf() (*dwarf.Data, error)
-	ParseDwarf()
+	ParseDwarf() map[string]map[string]DwarfEntry
 	GoArch() string
 	//	pcln() (textStart uint64, symtab, pclntab []byte, err error)
 	loadAddress() (uint64, error)
@@ -59,7 +59,7 @@ type Symbol interface {
 	GetBinding() string // binding calculated from s.Info
 	GetRelocations() []Relocation
 	GetOriginal() interface{}
-	GetParams()
+	GetDirection() string // import or export based on symbol definition
 }
 
 type Relocation struct {
@@ -91,6 +91,7 @@ func Open(name string) (*File, error) {
 	}
 
 	// eventually parse go files
+	// requires cmd/objfile/goobj.go to be public
 	//if f, err := openGoFile(handle); err == nil {
 	//	return f, nil
 	//}
@@ -138,12 +139,12 @@ func (f *File) DWARF() (*dwarf.Data, error) {
 	return f.Entries[0].Dwarf()
 }
 
-func (f *File) ParseDwarf() {
+func (f *File) ParseDwarf() map[string]map[string]DwarfEntry {
 	dwf, err := f.Entries[0].Dwarf()
 	if err != nil {
 		log.Fatalf("Error parsing dwarf %v", err)
 	}
-	ParseDwarf(dwf)
+	return ParseDwarf(dwf)
 }
 
 func (e *Entry) Symbols() ([]Symbol, error) {

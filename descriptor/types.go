@@ -1,24 +1,24 @@
 package descriptor
 
-// A Parameter interface must implement these functions
+// Sizes are in bytes
 
-type Parameter interface {
-	Name() string
-	TypeName() string
-	ClassName() string
-	Direction() string
-	Location() string
-	SizeBytes() int
-	ToJson()
+type FunctionParameter struct {
+	Name      string `json:"name,omitempty"`
+	TypeName  string `json:"type,omitempty"`
+	ClassName string `json:"class,omitempty"`
+	Direction string `json:"direction,omitempty"`
+	Location  string `json:"location,omitempty"`
+	Size      int64  `json:"sizes,omitempty"`
 }
 
 type FunctionDescription struct {
-	Parameters  []Parameter
-	ReturnValue Parameter
-	Name        string `json:"name"`
+	Parameters []FunctionParameter `json:"parameters,omitempty"`
+	Name       string              `json:"name"`
 }
 
 type VariableDescription struct {
-	Name string `json:"name"`
-	Type string `json:"type"`
+	Name      string `json:"name"`
+	Type      string `json:"type"`
+	Size      int64  `json:"sizes,omitempty"`
+	Direction string `json:"direction,omitempty"`
 }

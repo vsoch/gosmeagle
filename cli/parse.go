@@ -9,7 +9,9 @@ import (
 type ParserArgs struct {
 	Binary []string `desc:"A binary to parse."`
 }
-type ParserFlags struct{}
+type ParserFlags struct {
+	Pretty bool `long:"pretty" desc:"Pretty print the json"`
+}
 
 // Parser looks at symbols and ABI in Go
 var Parser = cmd.Sub{
@@ -28,6 +30,7 @@ func init() {
 // RunParser reads a file and creates a corpus
 func RunParser(r *cmd.Root, c *cmd.Sub) {
 	args := c.Args.(*ParserArgs)
+	flags := c.Flags.(*ParserFlags)
 	corpus := corpus.GetCorpus(args.Binary[0])
-	corpus.ToJson()
+	corpus.ToJson(flags.Pretty)
 }

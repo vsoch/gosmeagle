@@ -12,21 +12,23 @@ To run and preview the output, do:
 
 ```bash
 $ make
-$ go run main.go parse gosmeagle
+$ go run main.go parse libtest.so
 ```
 ```
-...
-[{a 8 long int } {b 8 long int } {c 8 long int } {d 8 long int } {e 8 long int } {f 16 __int128 }]
-[{__fmt -1  }]
-[]
+{"library":"libtest.so","functions":[{"name":"__printf_chk"},{"parameters":[{"name":"a","type":"long int","sizes":8},{"name":"b","type":"long int","sizes":8},{"name":"c","type":"long int","sizes":8},{"name":"d","type":"long int","sizes":8},{"name":"e","type":"long int","sizes":8},{"name":"f","type":"__int128","sizes":16}],"name":"bigcall"}]}
 ```
 
-Note that this library is under development, so currently I've just finished parsing functions
-and formal paramters from the dwarf, and next I'm going to map that to an x86_64 parser to get more
-metadata. Stay tuned!
+or print pretty:
 
-Note that I added parsing of the Type and Binding. I think I'm going to pull out using just the Dwarf wrapper and remove the internal code that isn't supposed to be accessible :)
-See discussion in [this thread](https://twitter.com/vsoch/status/1437535961131352065) for the discovery of the missing variables. 
+```
+$ go run main.go parse libtest.so --pretty
+```
+
+Note that this library is under development, so stay tuned!
+
+## Background
+
+I started this library after discussion (see [this thread](https://twitter.com/vsoch/status/1437535961131352065)) and wanting to extend Dwarf a bit and also reproduce [Smeagle](https://github.com/buildsi/Smeagle) in Go.
 
 ## Includes
 
@@ -35,3 +37,13 @@ Since I needed some functionality from [debug/dwarf](https://cs.opensource.googl
  - renaming readType to ReadType so it's public.
  - also renaming sigToType to SigToType so it's public
  - made typeCache public (TypeCache)
+
+## TODO
+
+ - add variable parsing
+ - add allocator to get allocations
+ - need to get registers / locations for each type
+ 
+ TODO: the typecache stores a TYPE and we need to also keep track of the CLASS or KIND of type, so add to that.
+ 
+ 

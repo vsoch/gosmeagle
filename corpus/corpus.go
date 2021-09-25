@@ -1,18 +1,21 @@
 package corpus
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/vsoch/gosmeagle/descriptor"
 	"github.com/vsoch/gosmeagle/parsers/file"
 	"github.com/vsoch/gosmeagle/parsers/x86_64"
 	"log"
+	"reflect"
 )
 
 // A corpus holds a library name, a list of Functions and variables
+// TODO should this be a list of Locations instead?
 type Corpus struct {
 	Library   string                           `json:"library"`
-	Functions []descriptor.FunctionDescription `json:"functions"`
-	Variables []string                         `json:"variables"`
+	Functions []descriptor.FunctionDescription `json:"functions,omitempty"`
+	Variables []descriptor.VariableDescription `json:"variables,omitempty"`
 }
 
 // Get a corpus from a filename
@@ -34,7 +37,7 @@ func GetCorpus(filename string) Corpus {
 func (c *Corpus) Parse(f *file.File) {
 
 	// Parse dwarf for each entry to use
-	f.ParseDwarf()
+	lookup := f.ParseDwarf()
 
 	// Parse entries based on type (function or variable)
 	for _, e := range f.Entries {
@@ -45,34 +48,48 @@ func (c *Corpus) Parse(f *file.File) {
 			log.Fatalf("Issue retriving symbols from %s", c.Library)
 		}
 		for _, symbol := range symbols {
+			switch symbol.GetType() {
+			case "STT_FUNC":
+				entry, ok := lookup["functions"][symbol.GetName()]
+				if !ok {
+					continue
+				}
+				c.parseFunction(f, symbol, &entry)
 
-			// If we have a function, parse function
-			if symbol.GetType() == "STT_FUNC" {
-				c.parseFunction(f, symbol)
+			case "STT_OBJECT":
+
+				// Do we have a variable with global linkage?
+				entry, ok := lookup["variables"][symbol.GetName()]
+				if ok && symbol.GetBinding() == "STB_GLOBAL" {
+					c.parseVariable(f, symbol, &entry)
+				}
+
 			}
-
-			// TODO if it's a variable AND has global linkage, parse
-
-			//fmt.Println("Name:", symbol.Name)
-			//fmt.Println("Address:", symbol.Address)
-			//fmt.Println("Size:", symbol.Size)
-			//fmt.Println("Code:", symbol.Code)
-			//fmt.Println("Type:", symbol.Type)
-			//fmt.Println("Binding:", symbol.Binding)
-			//fmt.Println("Relocs:", symbol.Relocations)
 		}
 	}
 }
 
 // parse a dynamic function symbol
-func (c *Corpus) parseFunction(f *file.File, symbol file.Symbol) {
+func (c *Corpus) parseFunction(f *file.File, symbol file.Symbol, entry *file.DwarfEntry) {
 
-	//fmt.Println(symbol)
 	switch f.GoArch() {
 	case "amd64":
-		{
-			c.Functions = append(c.Functions, x86_64.ParseFunction(f, symbol))
-			//		c.Functions = append(c.Functions, x86.ParseReturnValue(symbol)
+		c.Functions = append(c.Functions, x86_64.ParseFunction(f, symbol, entry))
+	default:
+		fmt.Printf("Unsupported architecture %s\n", f.GoArch())
+	}
+}
+
+// parse a global variable
+func (c *Corpus) parseVariable(f *file.File, symbol file.Symbol, entry *file.DwarfEntry) {
+
+	switch f.GoArch() {
+	case "amd64":
+
+		// Don't allow variables without name or type
+		variable := x86_64.ParseVariable(f, symbol, entry)
+		if !reflect.DeepEqual(variable, descriptor.VariableDescription{}) {
+			c.Variables = append(c.Variables, variable)
 		}
 	default:
 		fmt.Printf("Unsupported architecture %s\n", f.GoArch())
@@ -80,9 +97,14 @@ func (c *Corpus) parseFunction(f *file.File, symbol file.Symbol) {
 }
 
 // Serialize corpus to json
-func (c *Corpus) ToJson() {
+func (c *Corpus) ToJson(pretty bool) {
 
-	//outJson, _ := json.Marshal(c)
-	//output := string(outJson)
-	//fmt.Println(output)
+	var outJson []byte
+	if pretty {
+		outJson, _ = json.MarshalIndent(c, "", "    ")
+	} else {
+		outJson, _ = json.Marshal(c)
+	}
+	output := string(outJson)
+	fmt.Println(output)
 }

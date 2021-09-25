@@ -4,16 +4,24 @@ import (
 	"fmt"
 	"github.com/vsoch/gosmeagle/pkg/debug/dwarf"
 	"io"
-	"log"
 )
 
 // A common interface to represent a dwarf entry (what we need)
 type DwarfEntry interface {
 	GetComponents() []Component // Can be fields, params, etc.
+	Name() string
 }
 
 // Types that we need to parse
 type FunctionEntry struct {
+	Entry  *dwarf.Entry
+	Type   *dwarf.Type
+	Params []FormalParamEntry
+	Data   *dwarf.Data
+}
+
+// Types that we need to parse
+type VariableEntry struct {
 	Entry  *dwarf.Entry
 	Type   *dwarf.Type
 	Params []FormalParamEntry
@@ -34,6 +42,65 @@ type Component struct {
 	Framebase string
 }
 
+// GetUnderlyingType for a parameter or return value from AttrType
+func GetUnderlyingType(entry *dwarf.Entry, data *dwarf.Data) (dwarf.Type, error) {
+	paramTypeOffset := entry.Val(dwarf.AttrType)
+
+//	field = entry.AttrField(dwarf.A)
+	//for _, field := range entry.Field {
+	//	fmt.Println(field)
+	//}
+
+	if paramTypeOffset == nil {
+		return nil, nil
+	}
+	thetype, _ := data.Type(paramTypeOffset.(dwarf.Offset))
+
+
+	return thetype, nil
+}
+
+// Get the name of the entry or formal param
+func (f *FunctionEntry) Name() string {
+
+	linkageName := f.Entry.Val(dwarf.AttrLinkageName)
+	if linkageName != nil {
+		return linkageName.(string)
+	}
+	functionName := f.Entry.Val(dwarf.AttrName)
+	if functionName == nil {
+		return "anonymous"
+	}
+	return functionName.(string)
+}
+
+// Variable components is just one for the variable
+func (v *VariableEntry) GetComponents() []Component {
+	comps := []Component{}
+
+	// Can we have variables without names?
+	varName := v.Entry.Val(dwarf.AttrName)
+	if varName == nil {
+		return comps
+	}
+	varType, err := GetUnderlyingType(v.Entry, v.Data)
+	if err != nil {
+		return comps
+	}
+	// It looks like the Common().Name is empty here?
+	comps = append(comps, Component{Name: (varName).(string), Type: varType.String(), Size: varType.Common().ByteSize})
+	return comps
+}
+
+// Get the name of the entry or formal param
+func (v *VariableEntry) Name() string {
+	name := v.Entry.Val(dwarf.AttrName)
+	if name != nil {
+		return name.(string)
+	}
+	return ""
+}
+
 // Function components are the associated fields
 func (f *FunctionEntry) GetComponents() []Component {
 
@@ -44,11 +111,8 @@ func (f *FunctionEntry) GetComponents() []Component {
 		if paramName == nil {
 			continue
 		}
-		paramTypeOffset := param.Entry.Val(dwarf.AttrType)
-		if paramTypeOffset == nil {
-			fmt.Printf("Cannot find offset for %s, skipping\n", paramName)
-		}
-		paramType, err := f.Data.Type(paramTypeOffset.(dwarf.Offset))
+
+		paramType, err := GetUnderlyingType(param.Entry, f.Data)
 		if err != nil {
 			fmt.Printf("Cannot get type for %s\n", paramName)
 			continue
@@ -56,21 +120,26 @@ func (f *FunctionEntry) GetComponents() []Component {
 		comps = append(comps, Component{Name: (paramName).(string), Type: paramType.Common().Name, Size: paramType.Common().ByteSize})
 
 	}
-	fmt.Println(comps)
+
+	// Get the Return value - the "type" of
+	// TODO can we use := entry.Val(dwarf.AttrVarParam)
+	returnType, err := GetUnderlyingType(f.Entry, f.Data)
+	if returnType != nil && err != nil {
+		comps = append(comps, Component{Name: "return", Type: returnType.Common().Name, Size: returnType.Common().ByteSize})
+	}
 	return comps
 }
 
-// ParseDwarf and populate something / return something?
-func ParseDwarf(dwf *dwarf.Data) {
+// ParseDwarf and populate a lookup of Dwarf entries
+func ParseDwarf(dwf *dwarf.Data) map[string]map[string]DwarfEntry {
 
-	// TODO - need to save functions to some kind of lookup by name
-	// and return to save with the file in two spots?
-	// will need to call funcEntry.GetComponents()
+	// We will return a lookup of Dwarf entry
+	lookup := map[string]map[string]DwarfEntry{}
+	lookup["functions"] = map[string]DwarfEntry{}
+	lookup["variables"] = map[string]DwarfEntry{}
 
+	// The reader will help us parse the DIEs
 	entryReader := dwf.Reader()
-
-	// Keep list of general entries
-	entries := []DwarfEntry{}
 
 	// keep track of last function to associate with formal parameters, and if found them
 	var functionEntry *dwarf.Entry
@@ -85,12 +154,16 @@ func ParseDwarf(dwf *dwarf.Data) {
 
 		switch entry.Tag {
 
+//		case dwarf.TagArrayType, dwarf.TagPointerType, dwarf.TagStructType, dwarf.TagBaseType, dwarf.TagSubroutineType, dwarf.TagTypedef:
+//			fmt.Println(entry)
+			
 		// We found a function - hold onto it for any params
 		case dwarf.TagSubprogram:
 
 			// If we have a previous function entry, add it
 			if functionEntry != nil {
-				entries = append(entries, ParseFunction(dwf, functionEntry, params))
+				newEntry := ParseFunction(dwf, functionEntry, params)
+				lookup["functions"][newEntry.Name()] = newEntry
 			}
 
 			// Reset params and set new function entry
@@ -100,29 +173,31 @@ func ParseDwarf(dwf *dwarf.Data) {
 		// We match formal parameters to the last function (their parent)
 		case dwarf.TagFormalParameter:
 
-			// This shouldn't ever happen
+			// Skip formal params that don't have linked function
 			if functionEntry == nil {
-				log.Fatalf("Found formal parameter not associated to function: %s\n", entry)
+				continue
 			}
 			params = append(params, ParseFormalParameter(dwf, entry))
 
-		case dwarf.TagTypedef:
-			if _, ok := entry.Val(dwarf.AttrName).(string); ok {
-				//fmt.Println(value)
-			}
+		// We've found a variable. We can make this more efficient by limiting to global
+		case dwarf.TagVariable:
+			newVariable := ParseVariable(dwf, entry)
+			lookup["variables"][newVariable.Name()] = newVariable
+
+//		case dwarf.TagTypedef:
+//			if _, ok := entry.Val(dwarf.AttrName).(string); ok {
+//				//fmt.Println(value)
+//			}
 		}
 	}
 
 	// Parse the last function entry
 	if functionEntry != nil {
-		entries = append(entries, ParseFunction(dwf, functionEntry, params))
+		newEntry := ParseFunction(dwf, functionEntry, params)
+		lookup["functions"][newEntry.Name()] = newEntry
 	}
-	// Finally, consolidate and parse into records of Create a list of dwarf entry
-	// should be like a map so we can look things up?
-	// TODO we need a way to look up by id/name
-	// function names should be unique for a library?
-	//	entries := []DwarfEntry{}
 
+	return lookup
 }
 
 // Populate a formal parameter
@@ -132,7 +207,10 @@ func ParseFormalParameter(d *dwarf.Data, entry *dwarf.Entry) FormalParamEntry {
 
 // Populate a function entry
 func ParseFunction(d *dwarf.Data, entry *dwarf.Entry, params []FormalParamEntry) DwarfEntry {
-	funcEntry := &FunctionEntry{Entry: entry, Data: d, Params: params}
-	funcEntry.GetComponents() // TODO remove, this is debugging only
-	return funcEntry
+	return &FunctionEntry{Entry: entry, Data: d, Params: params}
+}
+
+// Populate a variable entry
+func ParseVariable(d *dwarf.Data, entry *dwarf.Entry) DwarfEntry {
+	return &VariableEntry{Entry: entry, Data: d}
 }
