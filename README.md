@@ -37,13 +37,11 @@ Since I needed some functionality from [debug/dwarf](https://cs.opensource.googl
  - renaming readType to ReadType so it's public.
  - also renaming sigToType to SigToType so it's public
  - made typeCache public (TypeCache)
+ - Added an "Original" (interface) to a CommonType, and then changed ReadType in [dwarf/debug/type.go](pkg/dwarf/debug/type.go) so that each case sets `t.Original = t` so we can return the original type to further parse (`t.Common().Original`).
 
 ## TODO
 
  - add variable parsing
  - add allocator to get allocations
  - need to get registers / locations for each type
- 
- TODO: the typecache stores a TYPE and we need to also keep track of the CLASS or KIND of type, so add to that.
- 
- 
+  

@@ -22,8 +22,9 @@ type Type interface {
 // If a field is not known or not applicable for a given type,
 // the zero value is used.
 type CommonType struct {
-	ByteSize int64  // size of value of this type, in bytes
-	Name     string // name that can be used to refer to type
+	ByteSize int64       // size of value of this type, in bytes
+	Name     string      // name that can be used to refer to type
+	Original interface{} // the original type
 }
 
 func (c *CommonType) Common() *CommonType { return c }
@@ -440,6 +441,7 @@ func (d *Data) ReadType(name string, r typeReader, off Offset, typeCache map[Off
 		for i := len(dims) - 1; i >= 1; i-- {
 			t.Type = &ArrayType{Type: t.Type, Count: dims[i]}
 		}
+		t.Original = t
 
 	case TagBaseType:
 		// Basic type.  (DWARF v2 §5.1)
@@ -495,6 +497,7 @@ func (d *Data) ReadType(name string, r typeReader, off Offset, typeCache map[Off
 		t.Name = name
 		t.BitSize, _ = e.Val(AttrBitSize).(int64)
 		t.BitOffset, _ = e.Val(AttrBitOffset).(int64)
+		t.Original = t
 
 	case TagClassType, TagStructType, TagUnionType:
 		// Structure, union, or class type.  (DWARF v2 §5.5)
@@ -579,6 +582,7 @@ func (d *Data) ReadType(name string, r typeReader, off Offset, typeCache map[Off
 				zeroArray(lastFieldType)
 			}
 		}
+		t.Original = t
 
 	case TagConstType, TagVolatileType, TagRestrictType:
 		// Type modifier (DWARF v2 §5.2)
@@ -598,6 +602,7 @@ func (d *Data) ReadType(name string, r typeReader, off Offset, typeCache map[Off
 		case TagVolatileType:
 			t.Qual = "volatile"
 		}
+		t.Original = t
 
 	case TagEnumerationType:
 		// Enumeration type (DWARF v2 §5.6)
@@ -628,6 +633,7 @@ func (d *Data) ReadType(name string, r typeReader, off Offset, typeCache map[Off
 				t.Val[n] = f
 			}
 		}
+		t.Original = t
 
 	case TagPointerType:
 		// Type modifier (DWARF v2 §5.2)
@@ -642,6 +648,7 @@ func (d *Data) ReadType(name string, r typeReader, off Offset, typeCache map[Off
 			break
 		}
 		t.Type = typeOf(e)
+		t.Original = t
 
 	case TagSubroutineType:
 		// Subroutine type.  (DWARF v2 §5.7)
@@ -672,8 +679,10 @@ func (d *Data) ReadType(name string, r typeReader, off Offset, typeCache map[Off
 			case TagUnspecifiedParameters:
 				tkid = &DotDotDotType{}
 			}
+			tkid.Common().Original = tkid
 			t.ParamType = append(t.ParamType, tkid)
 		}
+		t.Original = t
 
 	case TagTypedef:
 		// Typedef (DWARF v2 §5.3)
@@ -685,6 +694,7 @@ func (d *Data) ReadType(name string, r typeReader, off Offset, typeCache map[Off
 		typeCache[off] = t
 		t.Name, _ = e.Val(AttrName).(string)
 		t.Type = typeOf(e)
+		t.Original = t
 
 	case TagUnspecifiedType:
 		// Unspecified type (DWARF v3 §5.2)
@@ -694,6 +704,7 @@ func (d *Data) ReadType(name string, r typeReader, off Offset, typeCache map[Off
 		typ = t
 		typeCache[off] = t
 		t.Name, _ = e.Val(AttrName).(string)
+		t.Original = t
 
 	default:
 		// This is some other type DIE that we're currently not
@@ -704,6 +715,7 @@ func (d *Data) ReadType(name string, r typeReader, off Offset, typeCache map[Off
 		typeCache[off] = t
 		t.Tag = e.Tag
 		t.Name, _ = e.Val(AttrName).(string)
+		t.Original = t
 	}
 
 	if err != nil {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/vsoch/gosmeagle/pkg/debug/dwarf"
 	"io"
+	"reflect"
 )
 
 // A common interface to represent a dwarf entry (what we need)
@@ -37,27 +38,21 @@ type FormalParamEntry struct {
 // A Component can be a Field or param
 type Component struct {
 	Name      string
+	Class     string
 	Size      int64
 	Type      string
 	Framebase string
+	RawType   interface{} // the original type
 }
 
 // GetUnderlyingType for a parameter or return value from AttrType
 func GetUnderlyingType(entry *dwarf.Entry, data *dwarf.Data) (dwarf.Type, error) {
 	paramTypeOffset := entry.Val(dwarf.AttrType)
 
-//	field = entry.AttrField(dwarf.A)
-	//for _, field := range entry.Field {
-	//	fmt.Println(field)
-	//}
-
 	if paramTypeOffset == nil {
 		return nil, nil
 	}
-	thetype, _ := data.Type(paramTypeOffset.(dwarf.Offset))
-
-
-	return thetype, nil
+	return data.Type(paramTypeOffset.(dwarf.Offset))
 }
 
 // Get the name of the entry or formal param
@@ -88,7 +83,9 @@ func (v *VariableEntry) GetComponents() []Component {
 		return comps
 	}
 	// It looks like the Common().Name is empty here?
-	comps = append(comps, Component{Name: (varName).(string), Type: varType.String(), Size: varType.Common().ByteSize})
+	comps = append(comps, Component{Name: (varName).(string), Type: varType.String(),
+		RawType: varType.Common().Original, Class: GetStringType(varType),
+		Size: varType.Common().ByteSize})
 	return comps
 }
 
@@ -99,6 +96,37 @@ func (v *VariableEntry) Name() string {
 		return name.(string)
 	}
 	return ""
+}
+
+// Given a type, return a string representation
+func GetStringType(t dwarf.Type) string {
+	switch t.Common().Original.(type) {
+	case *dwarf.FuncType:
+		return "Function"
+	case *dwarf.StructType:
+		return "Structure"
+	case *dwarf.QualType:
+		return "Qualified"
+	case *dwarf.PtrType:
+		return "Pointer"
+	case *dwarf.TypedefType:
+		return "Typedef"
+	case *dwarf.BasicType:
+		return "Basic"
+	case *dwarf.IntType:
+		return "Int"
+	case *dwarf.FloatType:
+		return "Float"
+	case *dwarf.ArrayType:
+		return "Array"
+	case *dwarf.UintType:
+		return "Uint"
+	case nil:
+		return "Undefined"
+	default:
+		fmt.Println("Unaccounted for type", reflect.TypeOf(t.Common().Original))
+	}
+	return "Unknown"
 }
 
 // Function components are the associated fields
@@ -113,11 +141,16 @@ func (f *FunctionEntry) GetComponents() []Component {
 		}
 
 		paramType, err := GetUnderlyingType(param.Entry, f.Data)
+
+		// TODO do we need to remove const here?
+		// From Tim: Dyninst reconstructs CV qualifiers and packedness using DW_TAG_{const,packed,volatile}_type and then manually updating the name. It's a bit hacky, but see DwarfWalker::parseConstPackedVolatile
 		if err != nil {
 			fmt.Printf("Cannot get type for %s\n", paramName)
 			continue
 		}
-		comps = append(comps, Component{Name: (paramName).(string), Type: paramType.Common().Name, Size: paramType.Common().ByteSize})
+		comps = append(comps, Component{Name: (paramName).(string), Type: paramType.Common().Name,
+			Class: GetStringType(paramType), Size: paramType.Common().ByteSize,
+			RawType: paramType.Common().Original})
 
 	}
 
@@ -125,7 +158,9 @@ func (f *FunctionEntry) GetComponents() []Component {
 	// TODO can we use := entry.Val(dwarf.AttrVarParam)
 	returnType, err := GetUnderlyingType(f.Entry, f.Data)
 	if returnType != nil && err != nil {
-		comps = append(comps, Component{Name: "return", Type: returnType.Common().Name, Size: returnType.Common().ByteSize})
+		comps = append(comps, Component{Name: "return", Type: returnType.Common().Name,
+			Class: GetStringType(returnType), Size: returnType.Common().ByteSize,
+			RawType: returnType.Common().Original})
 	}
 	return comps
 }
@@ -154,9 +189,9 @@ func ParseDwarf(dwf *dwarf.Data) map[string]map[string]DwarfEntry {
 
 		switch entry.Tag {
 
-//		case dwarf.TagArrayType, dwarf.TagPointerType, dwarf.TagStructType, dwarf.TagBaseType, dwarf.TagSubroutineType, dwarf.TagTypedef:
-//			fmt.Println(entry)
-			
+		//		case dwarf.TagArrayType, dwarf.TagPointerType, dwarf.TagStructType, dwarf.TagBaseType, dwarf.TagSubroutineType, dwarf.TagTypedef:
+		//			fmt.Println(entry)
+
 		// We found a function - hold onto it for any params
 		case dwarf.TagSubprogram:
 
@@ -184,10 +219,10 @@ func ParseDwarf(dwf *dwarf.Data) map[string]map[string]DwarfEntry {
 			newVariable := ParseVariable(dwf, entry)
 			lookup["variables"][newVariable.Name()] = newVariable
 
-//		case dwarf.TagTypedef:
-//			if _, ok := entry.Val(dwarf.AttrName).(string); ok {
-//				//fmt.Println(value)
-//			}
+			//		case dwarf.TagTypedef:
+			//			if _, ok := entry.Val(dwarf.AttrName).(string); ok {
+			//				//fmt.Println(value)
+			//			}
 		}
 	}
 
