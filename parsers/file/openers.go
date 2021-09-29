@@ -56,6 +56,8 @@ type Symbol interface {
 	GetSize() int64     // size in bytes
 	GetCode() rune      // nm code (T for text, D for data, and so on)
 	GetType() string    // string of type calculated from s.Info
+	GetLibrary() string
+	GetVersion() string
 	GetBinding() string // binding calculated from s.Info
 	GetRelocations() []Relocation
 	GetOriginal() interface{}

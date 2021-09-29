@@ -5,6 +5,7 @@ package descriptor
 // A general interface to support different parameter types
 type Parameter interface {
 	GetSize() int64
+	GetClass() string
 }
 
 // A function description has a list of parameters
@@ -23,20 +24,30 @@ type FunctionParameter struct {
 	Size      int64  `json:"size,omitempty"`
 }
 
-// All types can return a size
+// All types can return a size and name
 func (f FunctionParameter) GetSize() int64  { return f.Size }
 func (f StructureParameter) GetSize() int64 { return f.Size }
 func (f PointerParameter) GetSize() int64   { return f.Size }
 func (f ArrayParameter) GetSize() int64     { return f.Size }
 func (f QualifiedParameter) GetSize() int64 { return f.Size }
 func (f BasicParameter) GetSize() int64     { return f.Size }
+func (f EnumParameter) GetSize() int64      { return f.Size }
+
+func (f FunctionParameter) GetClass() string  { return f.Class }
+func (f StructureParameter) GetClass() string { return f.Class }
+func (f PointerParameter) GetClass() string   { return f.Class }
+func (f ArrayParameter) GetClass() string     { return f.Class }
+func (f QualifiedParameter) GetClass() string { return f.Class }
+func (f BasicParameter) GetClass() string     { return f.Class }
+func (f EnumParameter) GetClass() string      { return f.Class }
 
 type StructureParameter struct {
-	Name   string      `json:"name,omitempty"`
-	Type   string      `json:"type,omitempty"`
-	Class  string      `json:"class,omitempty"`
-	Size   int64       `json:"size,omitempty"`
-	Fields []Parameter `json:"fields,omitempty"`
+	Name     string      `json:"name,omitempty"`
+	Type     string      `json:"type,omitempty"`
+	Class    string      `json:"class,omitempty"`
+	Size     int64       `json:"size,omitempty"`
+	Location string      `json:"location,omitempty"`
+	Fields   []Parameter `json:"fields,omitempty"`
 }
 
 type PointerParameter struct {
@@ -56,23 +67,38 @@ type ArrayParameter struct {
 	Class    string    `json:"class,omitempty"`
 	Size     int64     `json:"size,omitempty"`
 	Length   int64     `json:"count,omitempty"`
+	Location string    `json:"location,omitempty"`
 	ItemType Parameter `json:"items_type,omitemtpy"`
+}
+
+type EnumParameter struct {
+	Name      string           `json:"name,omitempty"`
+	Type      string           `json:"type,omitempty"`
+	Class     string           `json:"class,omitempty"`
+	Size      int64            `json:"size,omitempty"`
+	Location  string           `json:"location,omitempty"`
+	Length    int              `json:"count,omitempty"`
+	Constants map[string]int64 `json:"constants,omitemtpy"`
 }
 
 // QualifiedParameter and BasicParameter are the same, but we are modeling after debug/dwarf
 type QualifiedParameter struct {
-	Type string `json:"type,omitempty"`
-	Size int64  `json:"size,omitempty"`
+	Class    string `json:"class,omitempty"`
+	Type     string `json:"type,omitempty"`
+	Location string `json:"location,omitempty"`
+	Size     int64  `json:"size,omitempty"`
 }
 
 type BasicParameter struct {
-	Name  string `json:"name,omitempty"`
-	Type  string `json:"type,omitempty"`
-	Class string `json:"class,omitempty"`
-	Size  int64  `json:"size,omitempty"`
+	Name     string `json:"name,omitempty"`
+	Type     string `json:"type,omitempty"`
+	Class    string `json:"class,omitempty"`
+	Location string `json:"location,omitempty"`
+	Size     int64  `json:"size,omitempty"`
 }
 
 // A Variable description is general and can also describe an underlying type
+// TODO should there be location here?
 type VariableDescription struct {
 	Name      string `json:"name,omitempty"`
 	Class     string `json:"class,omitempty"`

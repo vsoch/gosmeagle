@@ -38,6 +38,8 @@ type ElfSymbol struct {
 	Code        rune         // nm code (T for text, D for data, and so on)
 	Type        string       // string of type calculated from s.Info
 	Binding     string       // binding calculated from s.Info
+	Library     string       // Library name
+	Version     string       // Library name
 	Relocations []Relocation // in increasing Addr order
 	Original    elf.Symbol   // hold the original symbol
 }
@@ -45,6 +47,12 @@ type ElfSymbol struct {
 // And functions required for an elf symbol
 func (s *ElfSymbol) GetName() string {
 	return s.Name
+}
+func (s *ElfSymbol) GetLibrary() string {
+	return s.Library
+}
+func (s *ElfSymbol) GetVersion() string {
+	return s.Version
 }
 
 // GetDirection determines if we have import/export based on definition
@@ -171,8 +179,8 @@ func (f *ElfFile) Symbols() ([]Symbol, error) {
 		binding := getSymbolBinding(s)
 
 		// Assume to start we don't know the code
-		symbol := ElfSymbol{Address: s.Value, Type: symType, Binding: binding,
-			Name: s.Name, Size: int64(s.Size), Code: '?', Original: s}
+		symbol := ElfSymbol{Address: s.Value, Type: symType, Binding: binding, Version: s.Version,
+			Name: s.Name, Size: int64(s.Size), Code: '?', Original: s, Library: s.Library}
 
 		// Add the correct code for the symbol
 		setSymbolCode(&s, &symbol, f)

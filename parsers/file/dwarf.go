@@ -101,6 +101,8 @@ func (v *VariableEntry) Name() string {
 // Given a type, return a string representation
 func GetStringType(t dwarf.Type) string {
 	switch t.Common().Original.(type) {
+	case *dwarf.EnumType:
+		return "Enum"
 	case *dwarf.FuncType:
 		return "Function"
 	case *dwarf.StructType:
@@ -121,6 +123,14 @@ func GetStringType(t dwarf.Type) string {
 		return "Array"
 	case *dwarf.UintType:
 		return "Uint"
+	case *dwarf.CharType:
+		return "Char"
+	case *dwarf.UcharType:
+		return "Uchar"
+	case *dwarf.BoolType:
+		return "Bool"
+	case *dwarf.ComplexType:
+		return "Complex"
 	case nil:
 		return "Undefined"
 	default:
