@@ -4,6 +4,8 @@ This is mostly for fun - I wanted to see how hard it would be to parse a binary
 with Go. Right now we use the same logic as objdump to load it, and then print
 Symbols (and I found an entry to where the Dwarf is).
 
+![img/smeagle.gif](img/smeagle.gif)
+
 🚧️ **under development** 🚧️
 
 ## Usage
@@ -15,7 +17,7 @@ $ make
 $ go run main.go parse libtest.so
 ```
 ```
-{"library":"libtest.so","functions":[{"name":"__printf_chk"},{"parameters":[{"name":"a","type":"long int","sizes":8},{"name":"b","type":"long int","sizes":8},{"name":"c","type":"long int","sizes":8},{"name":"d","type":"long int","sizes":8},{"name":"e","type":"long int","sizes":8},{"name":"f","type":"__int128","sizes":16}],"name":"bigcall"}]}
+{"library":"libtest.so","functions":[{"name":"__printf_chk","type":"Function"},{"parameters":[{"type":"long int","size":8},{"type":"long int","size":8},{"type":"long int","size":8},{"type":"long int","size":8},{"type":"long int","size":8},{"type":"__int128","size":16}],"name":"bigcall","type":"Function"}]}
 ```
 
 or print pretty:
@@ -23,7 +25,47 @@ or print pretty:
 ```
 $ go run main.go parse libtest.so --pretty
 ```
-
+```
+{
+    "library": "libtest.so",
+    "functions": [
+        {
+            "name": "__printf_chk",
+            "type": "Function"
+        },
+        {
+            "parameters": [
+                {
+                    "type": "long int",
+                    "size": 8
+                },
+                {
+                    "type": "long int",
+                    "size": 8
+                },
+                {
+                    "type": "long int",
+                    "size": 8
+                },
+                {
+                    "type": "long int",
+                    "size": 8
+                },
+                {
+                    "type": "long int",
+                    "size": 8
+                },
+                {
+                    "type": "__int128",
+                    "size": 16
+                }
+            ],
+            "name": "bigcall",
+            "type": "Function"
+        }
+    ]
+}
+```
 Note that this library is under development, so stay tuned!
 
 ## Background
@@ -46,11 +88,3 @@ d.StructCache[t.StructName] = t
 ```
 
 And then used in [parsers/x86_64/parse.go](parsers/x86_64/parse.go) to match a typedef (which only has name and type string) to a fully parsed struct (a struct, union, or class).
-
- 
-## TODO
-
- - add variable parsing
- - add allocator to get allocations
- - need to get registers / locations for each type
-  

@@ -1,12 +1,13 @@
 package x86_64
 
 import (
-	"github.com/vsoch/gosmeagle/descriptor"
-	"github.com/vsoch/gosmeagle/parsers/file"
-	"github.com/vsoch/gosmeagle/pkg/debug/dwarf"
 	"log"
 	"reflect"
 	"strings"
+
+	"github.com/vsoch/gosmeagle/descriptor"
+	"github.com/vsoch/gosmeagle/parsers/file"
+	"github.com/vsoch/gosmeagle/pkg/debug/dwarf"
 )
 
 // ParseFunction parses a function parameters
@@ -64,10 +65,9 @@ func ParseParameter(c file.Component, d *dwarf.Data, symbol file.Symbol, indirec
 		return ParseStructure(convert, d, symbol, indirections, seen, a)
 	case "Array":
 		return ParseArray(c, d, symbol, indirections, seen, a)
-	case "Function":
-		// TODO need to debug if this should be here
-		return descriptor.BasicParameter{}
-	case "", "Undefined":
+
+	// A nested function here appears to be anonymous (e.g., { Function -1   func(*char) void})
+	case "", "Undefined", "Function":
 		return nil
 	default:
 		log.Fatalf("Unparsed parameter class", c.Class)
@@ -172,12 +172,8 @@ func ParseArray(c file.Component, d *dwarf.Data, symbol file.Symbol, indirection
 	arrayClass := ClassifyArray(convert, &seenComponent, indirections)
 	loc := a.GetRegisterString(arrayClass.Lo, arrayClass.Hi, seenComponent.Size, seenComponent.Class)
 
-	// TODO need to debug why this can be nil (shouldn't be)
-	if underlyingType != nil {
-		return descriptor.ArrayParameter{Length: convert.Count, Name: convert.CommonType.Name, Type: convert.Type.String(),
-			Size: convert.Count * underlyingType.GetSize(), Class: "Array", ItemType: underlyingType, Location: loc}
-	}
-	return descriptor.ArrayParameter{}
+	return descriptor.ArrayParameter{Length: convert.Count, Name: convert.CommonType.Name, Type: convert.Type.String(),
+		Size: convert.Count * seenComponent.Size, Class: "Array", ItemType: underlyingType, Location: loc}
 }
 
 // ParseStructure parses a structure type
