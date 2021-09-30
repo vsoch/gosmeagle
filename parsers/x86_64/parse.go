@@ -21,13 +21,16 @@ func ParseFunction(f *file.File, symbol file.Symbol, entry *file.DwarfEntry) des
 	// Create an allocator for the function
 	allocator := NewRegisterAllocator()
 
+	// Data is needed by typedef to look up full struct, class, or union info
+	data := (*entry).GetData()
+
 	// A return value will be included here with name "return"
 	for _, c := range (*entry).GetComponents() {
 
 		indirections := int64(0)
 
 		// Parse the parameter!
-		param := ParseParameter(c, symbol, &indirections, &seen, allocator)
+		param := ParseParameter(c, data, symbol, &indirections, &seen, allocator)
 		if param != nil {
 			params = append(params, param)
 		}
@@ -38,30 +41,44 @@ func ParseFunction(f *file.File, symbol file.Symbol, entry *file.DwarfEntry) des
 }
 
 // ParseParameter will parse a general parameter
-func ParseParameter(c file.Component, symbol file.Symbol, indirections *int64, seen *map[string]file.Component, a *RegisterAllocator) descriptor.Parameter {
+func ParseParameter(c file.Component, d *dwarf.Data, symbol file.Symbol, indirections *int64, seen *map[string]file.Component, a *RegisterAllocator) descriptor.Parameter {
 
 	// Parse parameter based on the type
 	switch c.Class {
 	case "Pointer":
-		return ParsePointerType(c, symbol, indirections, seen, a)
+		return ParsePointerType(c, d, symbol, indirections, seen, a)
 	case "Qualified":
-		return ParseQualifiedType(c, symbol, indirections, seen, a)
-	case "Basic", "Uint", "Int", "Float", "Char", "Uchar", "Complex":
-		return ParseBasicType(c, symbol, indirections, seen, a)
+		return ParseQualifiedType(c, d, symbol, indirections, seen, a)
+	case "Basic", "Uint", "Int", "Float", "Char", "Uchar", "Complex", "Bool", "Unspecified", "Address":
+		return ParseBasicType(c, d, symbol, indirections, seen, a)
 	case "Enum":
 		return ParseEnumType(c, symbol, indirections, a)
 	case "Typedef":
+		convert := (*d).StructCache[c.Name]
+		if convert != nil {
+			return ParseStructure(convert, d, symbol, indirections, seen, a)
+		}
 		return ParseTypedef(c, symbol, indirections, seen)
 	case "Structure":
-		return ParseStructure(c, symbol, indirections, seen, a)
+		convert := c.RawType.(*dwarf.StructType)
+		return ParseStructure(convert, d, symbol, indirections, seen, a)
 	case "Array":
-		return ParseArray(c, symbol, indirections, seen, a)
+		return ParseArray(c, d, symbol, indirections, seen, a)
+	case "Function":
+		// TODO need to debug if this should be here
+		return descriptor.BasicParameter{}
 	case "", "Undefined":
 		return nil
 	default:
 		log.Fatalf("Unparsed parameter class", c.Class)
 	}
 	return nil
+}
+
+// ParseTypeDef parses a type definition
+func ParseTypedef(c file.Component, symbol file.Symbol, indirections *int64, seen *map[string]file.Component) descriptor.Parameter {
+	convert := c.RawType.(*dwarf.TypedefType)
+	return descriptor.BasicParameter{Name: convert.Name, Size: convert.CommonType.Size(), Type: convert.Type.Common().Name}
 }
 
 // ParseEnumType parses an enum type
@@ -84,14 +101,14 @@ func ParseEnumType(c file.Component, symbol file.Symbol, indirections *int64, a 
 }
 
 // ParsePointerType parses a pointer and returns an abi description for a function parameter
-func ParsePointerType(c file.Component, symbol file.Symbol, indirections *int64, seen *map[string]file.Component,
+func ParsePointerType(c file.Component, d *dwarf.Data, symbol file.Symbol, indirections *int64, seen *map[string]file.Component,
 	a *RegisterAllocator) descriptor.Parameter {
 
 	// Convert Original back to Pointer Type to get underlying type
 	convert := c.RawType.(*dwarf.PtrType)
 
 	// Default will return nil (no underlying type to continue parsing)
-	underlyingType := ParseParameter(file.Component{}, nil, indirections, seen, a)
+	underlyingType := ParseParameter(file.Component{}, d, nil, indirections, seen, a)
 
 	// Only parse things we haven't seen
 	seenComponent, ok := (*seen)[convert.Type.Common().Name]
@@ -104,7 +121,7 @@ func ParsePointerType(c file.Component, symbol file.Symbol, indirections *int64,
 
 		// Mark as seen, and parse the underlying type
 		(*seen)[convert.Type.Common().Name] = comp
-		underlyingType = ParseParameter(comp, nil, indirections, seen, a)
+		underlyingType = ParseParameter(comp, d, nil, indirections, seen, a)
 	}
 
 	// We only know the direction if we have a symbol
@@ -131,12 +148,12 @@ func ParsePointerType(c file.Component, symbol file.Symbol, indirections *int64,
 
 TODO: currently just testing with #2 above
 */
-func ParseArray(c file.Component, symbol file.Symbol, indirections *int64, seen *map[string]file.Component, a *RegisterAllocator) descriptor.Parameter {
+func ParseArray(c file.Component, d *dwarf.Data, symbol file.Symbol, indirections *int64, seen *map[string]file.Component, a *RegisterAllocator) descriptor.Parameter {
 
 	convert := c.RawType.(*dwarf.ArrayType)
 
 	// Default will return nil (no underlying type to continue parsing)
-	underlyingType := ParseParameter(file.Component{}, nil, indirections, seen, a)
+	underlyingType := ParseParameter(file.Component{}, d, nil, indirections, seen, a)
 
 	// Only parse things we haven't seen
 	seenComponent, ok := (*seen)[convert.Type.Common().Name]
@@ -149,30 +166,32 @@ func ParseArray(c file.Component, symbol file.Symbol, indirections *int64, seen 
 
 		// Mark as seen, and parse the underlying type
 		(*seen)[convert.Type.Common().Name] = comp
-		underlyingType = ParseParameter(comp, nil, indirections, seen, a)
+		underlyingType = ParseParameter(comp, d, nil, indirections, seen, a)
 	}
 
 	arrayClass := ClassifyArray(convert, &seenComponent, indirections)
 	loc := a.GetRegisterString(arrayClass.Lo, arrayClass.Hi, seenComponent.Size, seenComponent.Class)
-	return descriptor.ArrayParameter{Length: convert.Count, Name: convert.CommonType.Name, Type: convert.Type.String(),
-		Size: convert.Count * underlyingType.GetSize(), Class: "Array", ItemType: underlyingType, Location: loc}
+
+	// TODO need to debug why this can be nil (shouldn't be)
+	if underlyingType != nil {
+		return descriptor.ArrayParameter{Length: convert.Count, Name: convert.CommonType.Name, Type: convert.Type.String(),
+			Size: convert.Count * underlyingType.GetSize(), Class: "Array", ItemType: underlyingType, Location: loc}
+	}
+	return descriptor.ArrayParameter{}
 }
 
 // ParseStructure parses a structure type
-func ParseStructure(c file.Component, symbol file.Symbol, indirections *int64, seen *map[string]file.Component, a *RegisterAllocator) descriptor.Parameter {
-
-	convert := c.RawType.(*dwarf.StructType)
+func ParseStructure(convert *dwarf.StructType, d *dwarf.Data, symbol file.Symbol, indirections *int64, seen *map[string]file.Component, a *RegisterAllocator) descriptor.Parameter {
 
 	fields := []descriptor.Parameter{}
 	for _, field := range convert.Field {
 		c := file.Component{Name: field.Name, Class: file.GetStringType(field.Type),
 			Size: field.Type.Size(), RawType: field.Type}
-		newField := ParseParameter(c, nil, indirections, seen, a)
+		newField := ParseParameter(c, d, nil, indirections, seen, a)
 		if newField != nil {
 			fields = append(fields, newField)
 		}
 	}
-
 	// Get the location ?
 	// structClass := ClassifyStruct(convert, &c, indirections)
 	// loc := a.GetRegisterString(structClass.Lo, structClass.Hi, c.Size, c.Class)
@@ -182,12 +201,12 @@ func ParseStructure(c file.Component, symbol file.Symbol, indirections *int64, s
 }
 
 // ParseQualified parses a qualified type (a size and type)
-func ParseQualifiedType(c file.Component, symbol file.Symbol, indirections *int64, seen *map[string]file.Component, a *RegisterAllocator) descriptor.Parameter {
+func ParseQualifiedType(c file.Component, d *dwarf.Data, symbol file.Symbol, indirections *int64, seen *map[string]file.Component, a *RegisterAllocator) descriptor.Parameter {
 
 	// We can still have a pointer here!
 	switch c.RawType.(type) {
 	case *dwarf.PtrType:
-		return ParsePointerType(c, symbol, indirections, seen, a)
+		return ParsePointerType(c, d, symbol, indirections, seen, a)
 	case *dwarf.QualType:
 		convert := c.RawType.(*dwarf.QualType)
 		return descriptor.QualifiedParameter{Size: convert.Type.Size(), Type: convert.Type.String(), Class: "Qual"}
@@ -195,14 +214,8 @@ func ParseQualifiedType(c file.Component, symbol file.Symbol, indirections *int6
 	return descriptor.QualifiedParameter{}
 }
 
-// ParseTypeDef parses a type definition
-func ParseTypedef(c file.Component, symbol file.Symbol, indirections *int64, seen *map[string]file.Component) descriptor.Parameter {
-	convert := c.RawType.(*dwarf.TypedefType)
-	return descriptor.BasicParameter{Name: convert.Name, Size: convert.CommonType.Size(), Type: convert.Type.Common().Name}
-}
-
 // ParseBasicType parses a basic type
-func ParseBasicType(c file.Component, symbol file.Symbol, indirections *int64, seen *map[string]file.Component, a *RegisterAllocator) descriptor.Parameter {
+func ParseBasicType(c file.Component, d *dwarf.Data, symbol file.Symbol, indirections *int64, seen *map[string]file.Component, a *RegisterAllocator) descriptor.Parameter {
 
 	switch c.RawType.(type) {
 	case *dwarf.IntType:
@@ -233,7 +246,7 @@ func ParseBasicType(c file.Component, symbol file.Symbol, indirections *int64, s
 		convert := c.RawType.(*dwarf.AddrType)
 		return descriptor.BasicParameter{Size: convert.CommonType.Size(), Type: convert.CommonType.Name, Class: "Address"}
 	case *dwarf.PtrType:
-		return ParsePointerType(c, symbol, indirections, seen, a)
+		return ParsePointerType(c, d, symbol, indirections, seen, a)
 	case *dwarf.BasicType:
 		convert := c.RawType.(*dwarf.BasicType)
 		return descriptor.BasicParameter{Size: convert.CommonType.Size(), Type: convert.CommonType.Name}

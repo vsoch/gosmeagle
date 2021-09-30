@@ -3,9 +3,9 @@ package x86_64
 // A register class for AMD64 is defined on page 16 of the System V abi pdf
 
 import (
-	"fmt"
 	"github.com/vsoch/gosmeagle/parsers/file"
 	"github.com/vsoch/gosmeagle/pkg/debug/dwarf"
+	"log"
 	"strings"
 )
 
@@ -195,103 +195,72 @@ func ClassifyType(c *file.Component, ptrCount *int64) Classification {
 		convert := c.RawType.(*dwarf.EnumType)
 		return ClassifyEnum(convert, c, ptrCount)
 
-	// TODO need to add scalar type (which are they?)
+	// Smeagle c++ most similar function is called classify_scalar
+	case "Basic", "Uint", "Int", "Float", "Char", "Uchar", "Complex", "Bool", "Unspecified", "Address":
+		return ClassifyBasic(c, ptrCount)
+
 	// This case actually handles struct, union, and class
 	case "Struct":
 		convert := c.RawType.(*dwarf.StructType)
 		return ClassifyStruct(convert, c, ptrCount)
 	default:
-		fmt.Println(c.Class)
+		log.Fatalf("Unnacounted for class in classifyType", c.Class)
 	}
 
-	/*
-	   auto [underlying_type, ptr_cnt] = unwrap_underlying_type(fieldType);
-
-	   if (ptr_cnt > 0) {
-	     return classify_pointer(ptr_cnt);
-	   }
-
-	   if (auto *t = underlying_type->getScalarType()) {
-	     return classify(t);
-	   }
-	 }*/
 	return Classification{Lo: NO_CLASS, Hi: NO_CLASS, Name: "Unknown"}
 }
 
-/*
-namespace smeagle::x86_64 {
+func ClassifyBasic(c *file.Component, ptrCount *int64) Classification {
 
+	size := c.Size
 
-  inline classification classify(st::typeScalar *t) {
-    // paramType properties have booleans to indicate types
-    auto const &props = t->properties();
+	// Integral types
+	switch c.Class {
+	case "Uint", "Int", "Char", "Uchar":
+		if size > 128 {
+			return Classification{Lo: SSE, Hi: SSEUP, Name: "IntegerVec"}
+		}
+		if size == 128 {
+			// __int128 is treated as struct{long,long};
+			// This is NOT correct, but we don't handle aggregates yet.
+			// How do we differentiate between __int128 and __m128i?
+			return Classification{Lo: SSE, Hi: NO_CLASS, Name: "Integer"}
+		}
 
-    // size in BITS
-    const auto size = t->getSize() * 8;
+		// _Decimal32, _Decimal64, and __m64 are supposed to be SSE.
+		// TODO How can we differentiate them here?
+		return Classification{Lo: INTEGER, Hi: NO_CLASS, Name: "Integer"}
 
-    // Integral types
-    if (props.is_integral || props.is_UTF) {
-      if (size > 128) {
-        return {RegisterClass::SSE, RegisterClass::SSEUP, "IntegerVec"};
-      }
-      if (size == 128) {
-        // __int128 is treated as struct{long,long};
-        // This is NOT correct, but we don't handle aggregates yet.
-        // How do we differentiate between __int128 and __m128i?
-        return {RegisterClass::MEMORY, RegisterClass::NO_CLASS, "Integer"};
-      }
+	case "Complex":
+		if size == 128 {
+			// x87 `complex long double`
+			return Classification{Lo: COMPLEX_X87, Hi: NO_CLASS, Name: "CplxFloat"}
+		}
+		// This is NOT correct.
+		// TODO It should be struct{T r,i;};, but we don't handle aggregates yet
+		return Classification{Lo: MEMORY, Hi: NO_CLASS, Name: "CplxFloat"}
 
-      // _Decimal32, _Decimal64, and __m64 are supposed to be SSE.
-      // TODO How can we differentiate them here?
-      return {RegisterClass::INTEGER, RegisterClass::NO_CLASS, "Integer"};
-    }
+	case "Float":
+		if size <= 64 {
+			// 32- or 64-bit floats
+			return Classification{Lo: SSE, Hi: SSEUP, Name: "Float"}
+		}
+		if size == 128 {
+			// x87 `long double` OR __m128[d]
+			// TODO: How do we differentiate the vector type here? Dyninst should help us
+			return Classification{Lo: X87, Hi: X87UP, Name: "Float"}
+		}
+		if size > 128 {
+			return Classification{Lo: SSE, Hi: SSEUP, Name: "FloatVec"}
+		}
 
-    if (props.is_floating_point) {
-      if (props.is_complex_float) {
-        if (size == 128) {
-          // x87 `complex long double`
-          return {RegisterClass::COMPLEX_X87, RegisterClass::NO_CLASS, "CplxFloat"};
-        }
-        // This is NOT correct.
-        // TODO It should be struct{T r,i;};, but we don't handle aggregates yet
-        return {RegisterClass::MEMORY, RegisterClass::NO_CLASS, "CplxFloat"};
-      }
-      if (size <= 64) {
-        // 32- or 64-bit floats
-        return {RegisterClass::SSE, RegisterClass::SSEUP, "Float"};
-      }
-      if (size == 128) {
-        // x87 `long double` OR __m128[d]
-        // TODO: How do we differentiate the vector type here? Dyninst should help us
-        return {RegisterClass::X87, RegisterClass::X87UP, "Float"};
-      }
-      if (size > 128) {
-        return {RegisterClass::SSE, RegisterClass::SSEUP, "FloatVec"};
-      }
-    }
+	//case *dwarf.PtrType:
+	//	return ClassifyPointer(ptrCount)
 
-    // TODO we will eventually want to throw this
-    // throw std::runtime_error{"Unknown scalar type"};
-    return {RegisterClass::NO_CLASS, RegisterClass::NO_CLASS, "Unknown"};
-  }
+	//case *dwarf.BasicType:
 
-
-
-  // Classify the fields
-  std::vector<classification> classify_fields(st::typeStruct *t) {
-    std::vector<classification> classes;
-    for (auto *f : *t->getFields()) {
-      classes.push_back(classify(f));
-    }
-    return classes;
-  }
-
-
-  // Classify a single field
-  classification classify(st::Field *f) {
-    // Just classify the type of the field
-    return classify_type(f->getType());
-  }
-
-}  // namespace smeagle::x86_64
-*/
+	default:
+		log.Fatalf("Scalar classification type not accounted for:", c.Class)
+	}
+	return Classification{Lo: NO_CLASS, Hi: NO_CLASS, Name: "Unknown"}
+}

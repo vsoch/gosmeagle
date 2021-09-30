@@ -36,6 +36,7 @@ type Data struct {
 	bigEndian   bool
 	order       binary.ByteOrder
 	TypeCache   map[Offset]Type
+	StructCache map[string]*StructType
 	typeSigs    map[uint64]*typeUnit
 	unit        []unit
 }
@@ -62,6 +63,7 @@ func New(abbrev, aranges, frame, info, line, pubnames, ranges, str []byte) (*Dat
 		str:         str,
 		abbrevCache: make(map[uint64]abbrevTable),
 		TypeCache:   make(map[Offset]Type),
+		StructCache: make(map[string]*StructType),
 		typeSigs:    make(map[uint64]*typeUnit),
 	}
 

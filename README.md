@@ -38,7 +38,16 @@ Since I needed some functionality from [debug/dwarf](https://cs.opensource.googl
  - also renaming sigToType to SigToType so it's public
  - made typeCache public (TypeCache)
  - Added an "Original" (interface) to a CommonType, and then changed ReadType in [dwarf/debug/type.go](pkg/dwarf/debug/type.go) so that each case sets `t.Original = t` so we can return the original type to further parse (`t.Common().Original`).
+ - Added a StructCache to the dwarf.Data in [pkg/debug/dwarf/open.go](pkg/debub/dwarf/open.go) that is populated in [pkg/debug/dwarf/type.go](pkg/debug/dwarf/type.go) as follows:
+ 
+```
+// ADDED: save the struct to the struct cache for later lookup
+d.StructCache[t.StructName] = t
+```
 
+And then used in [parsers/x86_64/parse.go](parsers/x86_64/parse.go) to match a typedef (which only has name and type string) to a fully parsed struct (a struct, union, or class).
+
+ 
 ## TODO
 
  - add variable parsing

@@ -11,6 +11,9 @@ import (
 type DwarfEntry interface {
 	GetComponents() []Component // Can be fields, params, etc.
 	Name() string
+	GetData() *dwarf.Data
+	GetEntry() *dwarf.Entry
+	GetType() *dwarf.Type
 }
 
 // Types that we need to parse
@@ -55,6 +58,14 @@ func GetUnderlyingType(entry *dwarf.Entry, data *dwarf.Data) (dwarf.Type, error)
 	return data.Type(paramTypeOffset.(dwarf.Offset))
 }
 
+// Expose data and type
+func (f *FunctionEntry) GetData() *dwarf.Data   { return f.Data }
+func (v *VariableEntry) GetData() *dwarf.Data   { return v.Data }
+func (f *FunctionEntry) GetType() *dwarf.Type   { return f.Type }
+func (v *VariableEntry) GetType() *dwarf.Type   { return v.Type }
+func (f *FunctionEntry) GetEntry() *dwarf.Entry { return f.Entry }
+func (v *VariableEntry) GetEntry() *dwarf.Entry { return v.Entry }
+
 // Get the name of the entry or formal param
 func (f *FunctionEntry) Name() string {
 
@@ -79,13 +90,14 @@ func (v *VariableEntry) GetComponents() []Component {
 		return comps
 	}
 	varType, err := GetUnderlyingType(v.Entry, v.Data)
+
 	if err != nil {
 		return comps
 	}
 	// It looks like the Common().Name is empty here?
 	comps = append(comps, Component{Name: (varName).(string), Type: varType.String(),
 		RawType: varType.Common().Original, Class: GetStringType(varType),
-		Size: varType.Common().ByteSize})
+		Size: varType.Size()})
 	return comps
 }
 
@@ -158,6 +170,7 @@ func (f *FunctionEntry) GetComponents() []Component {
 			fmt.Printf("Cannot get type for %s\n", paramName)
 			continue
 		}
+
 		comps = append(comps, Component{Name: (paramName).(string), Type: paramType.Common().Name,
 			Class: GetStringType(paramType), Size: paramType.Common().ByteSize,
 			RawType: paramType.Common().Original})
@@ -199,9 +212,6 @@ func ParseDwarf(dwf *dwarf.Data) map[string]map[string]DwarfEntry {
 
 		switch entry.Tag {
 
-		//		case dwarf.TagArrayType, dwarf.TagPointerType, dwarf.TagStructType, dwarf.TagBaseType, dwarf.TagSubroutineType, dwarf.TagTypedef:
-		//			fmt.Println(entry)
-
 		// We found a function - hold onto it for any params
 		case dwarf.TagSubprogram:
 
@@ -228,11 +238,6 @@ func ParseDwarf(dwf *dwarf.Data) map[string]map[string]DwarfEntry {
 		case dwarf.TagVariable:
 			newVariable := ParseVariable(dwf, entry)
 			lookup["variables"][newVariable.Name()] = newVariable
-
-			//		case dwarf.TagTypedef:
-			//			if _, ok := entry.Val(dwarf.AttrName).(string); ok {
-			//				//fmt.Println(value)
-			//			}
 		}
 	}
 

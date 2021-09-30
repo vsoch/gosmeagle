@@ -60,7 +60,6 @@ func (c *Corpus) Parse(f *file.File) {
 
 				// Do we have a variable with global linkage?
 				entry, ok := lookup["variables"][symbol.GetName()]
-				fmt.Println(symbol)
 				if ok && symbol.GetBinding() == "STB_GLOBAL" {
 					c.parseVariable(f, symbol, &entry)
 				}

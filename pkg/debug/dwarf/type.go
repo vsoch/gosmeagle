@@ -584,6 +584,9 @@ func (d *Data) ReadType(name string, r typeReader, off Offset, typeCache map[Off
 		}
 		t.Original = t
 
+		// ADDED: save the struct to the struct cache for later lookup
+		d.StructCache[t.StructName] = t
+
 	case TagConstType, TagVolatileType, TagRestrictType:
 		// Type modifier (DWARF v2 §5.2)
 		// Attributes:

@@ -87,6 +87,7 @@ func (d *Data) parseTypes(name string, types []byte) error {
 // Return the type for a type signature.
 func (d *Data) SigToType(sig uint64) (Type, error) {
 	tu := d.typeSigs[sig]
+
 	if tu == nil {
 		return nil, fmt.Errorf("no type unit with signature %v", sig)
 	}

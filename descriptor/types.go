@@ -6,6 +6,7 @@ package descriptor
 type Parameter interface {
 	GetSize() int64
 	GetClass() string
+	GetName() string
 }
 
 // A function description has a list of parameters
@@ -40,6 +41,14 @@ func (f ArrayParameter) GetClass() string     { return f.Class }
 func (f QualifiedParameter) GetClass() string { return f.Class }
 func (f BasicParameter) GetClass() string     { return f.Class }
 func (f EnumParameter) GetClass() string      { return f.Class }
+
+func (f FunctionParameter) GetName() string  { return f.Name }
+func (f StructureParameter) GetName() string { return f.Name }
+func (f PointerParameter) GetName() string   { return f.Name }
+func (f ArrayParameter) GetName() string     { return f.Name }
+func (f QualifiedParameter) GetName() string { return f.Name }
+func (f BasicParameter) GetName() string     { return f.Name }
+func (f EnumParameter) GetName() string      { return f.Name }
 
 type StructureParameter struct {
 	Name     string      `json:"name,omitempty"`
@@ -83,6 +92,7 @@ type EnumParameter struct {
 
 // QualifiedParameter and BasicParameter are the same, but we are modeling after debug/dwarf
 type QualifiedParameter struct {
+	Name     string `json:"name,omitempty"`
 	Class    string `json:"class,omitempty"`
 	Type     string `json:"type,omitempty"`
 	Location string `json:"location,omitempty"`
@@ -103,6 +113,6 @@ type VariableDescription struct {
 	Name      string `json:"name,omitempty"`
 	Class     string `json:"class,omitempty"`
 	Type      string `json:"type,omitempty"`
-	Size      int64  `json:"size,omitempty"`
+	Size      int64  `json:"size"`
 	Direction string `json:"direction,omitempty"`
 }
