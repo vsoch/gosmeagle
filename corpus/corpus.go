@@ -45,7 +45,7 @@ func (c *Corpus) Parse(f *file.File) {
 		// These are dynamic symbol table symbols
 		symbols, err := e.Symbols()
 		if err != nil {
-			log.Fatalf("Issue retriving symbols from %s", c.Library)
+			log.Fatalf("Issue retriving symbols from %s: %v", c.Library, err)
 		}
 		for _, symbol := range symbols {
 			switch symbol.GetType() {

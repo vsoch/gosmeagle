@@ -21,10 +21,29 @@ type File struct {
 	Entries []*Entry
 }
 
+// Get the handle of the file
+func (f *File) GetHandle() *os.File {
+	return f.handle
+}
+
+// Get the handle of the file
+func (f *File) GetEntries() []*Entry {
+	return f.Entries
+}
+
 // A generic Entry in a file has a name and data
 type Entry struct {
 	Name string
 	data rawFile
+}
+
+func (e *Entry) GetName() string {
+	return e.Name
+}
+
+// ADDED get raw data
+func (e *Entry) GetData() rawFile {
+	return e.data
 }
 
 // Symbols and other data associated with the file
@@ -65,16 +84,16 @@ type Symbol interface {
 }
 
 type Relocation struct {
-	Address uint64 // Address of first byte that reloc applies to.
-	Size    uint64 // Number of bytes
-	//	Stringer RelocStringer
+	Address  uint64 // Address of first byte that reloc applies to.
+	Size     uint64 // Number of bytes
+	Stringer RelocStringer
 }
 
-//type RelocStringer interface {
-// insnOffset is the offset of the instruction containing the relocation
-// from the start of the symbol containing the relocation.
-//	String(insnOffset uint64) string
-//}
+type RelocStringer interface {
+	// insnOffset is the offset of the instruction containing the relocation
+	// from the start of the symbol containing the relocation./
+	String(insnOffset uint64) string
+}
 
 // We need to have multiple openers to handle different kinds of files
 var openers = []func(io.ReaderAt) (rawFile, error){
@@ -93,10 +112,10 @@ func Open(name string) (*File, error) {
 	}
 
 	// eventually parse go files
-	// requires cmd/objfile/goobj.go to be public
-	//if f, err := openGoFile(handle); err == nil {
-	//	return f, nil
-	//}
+	// required cmd/objfile/goobj.go to be public
+	if f, err := OpenGoFile(handle); err == nil {
+		return f, nil
+	}
 	for _, function := range openers {
 		if data, err := function(handle); err == nil {
 			return &File{handle, []*Entry{{data: data}}}, nil

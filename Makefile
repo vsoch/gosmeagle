@@ -1,9 +1,9 @@
 all:
 	gofmt -s -w .
-	go build -o gosmeagle
+	go build -gcflags '-N -l' -o gosmeagle
 	
 build:
-	go build -o gosmeagle
+	go build -gcflags '-N -l' -o gosmeagle
 	
 run:
 	go run main.go
