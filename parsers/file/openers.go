@@ -11,8 +11,8 @@ import (
 	"os"
 	"sort"
 
+	"debug/gosym"
 	"github.com/vsoch/gosmeagle/pkg/debug/dwarf"
-	//	"debug/gosym"
 )
 
 // An opened File - can be multiple types
@@ -33,8 +33,11 @@ type rawFile interface {
 	Dwarf() (*dwarf.Data, error)
 	ParseDwarf() map[string]map[string]DwarfEntry
 	GoArch() string
-	//	pcln() (textStart uint64, symtab, pclntab []byte, err error)
+
+	// renamed from pcln
+	PCLineTable() (textStart uint64, symtab, pclntab []byte, err error)
 	loadAddress() (uint64, error)
+	DynamicSymbols() (syms []Symbol, err error)
 	Symbols() (syms []Symbol, err error)
 	text() (textStart uint64, text []byte, err error)
 }
@@ -65,16 +68,16 @@ type Symbol interface {
 }
 
 type Relocation struct {
-	Address uint64 // Address of first byte that reloc applies to.
-	Size    uint64 // Number of bytes
-	//	Stringer RelocStringer
+	Address  uint64 // Address of first byte that reloc applies to.
+	Size     uint64 // Number of bytes
+	Stringer RelocStringer
 }
 
-//type RelocStringer interface {
-// insnOffset is the offset of the instruction containing the relocation
-// from the start of the symbol containing the relocation.
-//	String(insnOffset uint64) string
-//}
+type RelocStringer interface {
+	// insnOffset is the offset of the instruction containing the relocation
+	// from the start of the symbol containing the relocation.
+	String(insnOffset uint64) string
+}
 
 // We need to have multiple openers to handle different kinds of files
 var openers = []func(io.ReaderAt) (rawFile, error){
@@ -116,25 +119,30 @@ func (f *File) GoArch() string {
 	return f.Entries[0].GOARCH()
 }
 
-/*func (f *File) Symbols() ([]Sym, error) {
-	return f.entries[0].Symbols()
+func (f *File) DynamicSymbols() ([]Symbol, error) {
+	return f.Entries[0].DynamicSymbols()
+}
+
+func (f *File) Symbols() ([]Symbol, error) {
+	return f.Entries[0].Symbols()
 }
 
 func (f *File) PCLineTable() (Liner, error) {
-	return f.entries[0].PCLineTable()
+	return f.Entries[0].PCLineTable()
 }
 
 func (f *File) Text() (uint64, []byte, error) {
-	return f.entries[0].Text()
+	return f.Entries[0].Text()
 }
 
 func (f *File) LoadAddress() (uint64, error) {
-	return f.entries[0].LoadAddress()
+	return f.Entries[0].LoadAddress()
 }
 
+// Added back to support getting assembly to parse call sites
 func (f *File) Disasm() (*Disasm, error) {
-	return f.entries[0].Disasm()
-}*/
+	return f.Entries[0].Disasm()
+}
 
 // Since this returns the top node (root), it returns all the dwarf
 func (f *File) DWARF() (*dwarf.Data, error) {
@@ -158,19 +166,28 @@ func (e *Entry) Symbols() ([]Symbol, error) {
 	return syms, nil
 }
 
-/*func (e *Entry) PCLineTable() (Liner, error) {
+func (e *Entry) DynamicSymbols() ([]Symbol, error) {
+	syms, err := e.data.DynamicSymbols()
+	if err != nil {
+		return nil, err
+	}
+	sort.Sort(SortByAddress(syms))
+	return syms, nil
+}
+
+func (e *Entry) PCLineTable() (Liner, error) {
 	// If the raw file implements Liner directly, use that.
 	// Currently, only Go intermediate objects and archives (goobj) use this path.
-	if pcln, ok := e.raw.(Liner); ok {
+	if pcln, ok := e.data.(Liner); ok {
 		return pcln, nil
 	}
 	// Otherwise, read the pcln tables and build a Liner out of that.
-	textStart, symtab, pclntab, err := e.raw.pcln()
+	textStart, symtab, pclntab, err := e.data.PCLineTable()
 	if err != nil {
 		return nil, err
 	}
 	return gosym.NewTable(symtab, gosym.NewLineTable(pclntab, textStart))
-}*/
+}
 
 // Text returns the text assocaited with the entry
 func (e *Entry) Text() (uint64, []byte, error) {

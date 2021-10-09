@@ -10,10 +10,23 @@ Symbols (and I found an entry to where the Dwarf is).
 
 ## Usage
 
-To run and preview the output, do:
+To build the gosmeagle binary, you can do:
 
 ```bash
 $ make
+```
+
+You can also interact as follows:
+
+```bash
+$ go run main.go
+```
+
+### Parse
+
+Parsing means outputting a corpus to JSON.
+
+```bash
 $ go run main.go parse libtest.so
 ```
 ```
@@ -66,6 +79,42 @@ $ go run main.go parse libtest.so --pretty
     ]
 }
 ```
+
+### Disasm
+
+Disassembling means printing Assembly.
+
+```bash
+$ go run main.go disasm libtest.so
+```
+```bash
+TEXT register_tm_clones(SB) 
+
+TEXT __do_global_dtors_aux(SB) 
+
+TEXT frame_dummy(SB) 
+
+TEXT bigcall(SB) 
+  0x1120		f3			?								
+  0x1121		0f			?								
+  0x1122		1e			?								
+  0x1123		fa			CLI                                  // cli			
+  0x1124		4883ec10		SUBQ $0x10, SP                       // sub $0x10,%rsp		
+  0x1128		4989c9			MOVQ CX, R9                          // mov %rcx,%r9		
+  0x112b		31c0			XORL AX, AX                          // xor %eax,%eax		
+  0x112d		4889f1			MOVQ SI, CX                          // mov %rsi,%rcx		
+  0x1130		ff742418		PUSHQ 0x18(SP)                       // pushq 0x18(%rsp)	
+  0x1134		488d35c50e0000		LEAQ 0xec5(IP), SI                   // lea 0xec5(%rip),%rsi	
+  0x113b		ff742428		PUSHQ 0x28(SP)                       // pushq 0x28(%rsp)	
+  0x113f		4150			PUSHL R8                             // push %r8		
+  0x1141		4989d0			MOVQ DX, R8                          // mov %rdx,%r8		
+  0x1144		4889fa			MOVQ DI, DX                          // mov %rdi,%rdx		
+  0x1147		bf01000000		MOVL $0x1, DI                        // mov $0x1,%edi		
+  0x114c		e8fffeffff		CALL 0x1050                          // callq 0x1050		
+  0x1151		4883c428		ADDQ $0x28, SP                       // add $0x28,%rsp		
+  0x1155		c3			RET                                  // retq
+```
+
 Note that this library is under development, so stay tuned!
 
 ## Background

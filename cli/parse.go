@@ -31,6 +31,6 @@ func init() {
 func RunParser(r *cmd.Root, c *cmd.Sub) {
 	args := c.Args.(*ParserArgs)
 	flags := c.Flags.(*ParserFlags)
-	corpus := corpus.GetCorpus(args.Binary[0])
-	corpus.ToJson(flags.Pretty)
+	C := corpus.GetCorpus(args.Binary[0])
+	C.ToJson(flags.Pretty)
 }

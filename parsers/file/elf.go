@@ -163,11 +163,16 @@ func setSymbolCode(s *elf.Symbol, symbol *ElfSymbol, f *ElfFile) {
 }
 
 // Get dynamic symbols for the elf file
-func (f *ElfFile) Symbols() ([]Symbol, error) {
+func (f *ElfFile) DynamicSymbols() ([]Symbol, error) {
 	elfSyms, err := f.elf.DynamicSymbols()
 	if err != nil {
 		return nil, err
 	}
+	return f.parseSymbols(elfSyms)
+}
+
+// parseSymbols is a shared function for parsing dynamic or all symbols
+func (f *ElfFile) parseSymbols(elfSyms []elf.Symbol) ([]Symbol, error) {
 
 	// TODO look up imported symbols to give direction
 	// https://cs.opensource.google/go/go/+/master:src/debug/elf/file.go;l=1285?q=DynamicSymbols&ss=go%2Fgo
@@ -186,11 +191,20 @@ func (f *ElfFile) Symbols() ([]Symbol, error) {
 		setSymbolCode(&s, &symbol, f)
 		syms = append(syms, &symbol)
 	}
-
 	return syms, nil
 }
 
-/*func (f *elfFile) pcln() (textStart uint64, symtab, pclntab []byte, err error) {
+// Get dynamic symbols for the elf file
+func (f *ElfFile) Symbols() ([]Symbol, error) {
+	elfSyms, err := f.elf.Symbols()
+	if err != nil {
+		return nil, err
+	}
+	return f.parseSymbols(elfSyms)
+}
+
+// PCLineTable is renamed from pcln
+func (f *ElfFile) PCLineTable() (textStart uint64, symtab, pclntab []byte, err error) {
 	if sect := f.elf.Section(".text"); sect != nil {
 		textStart = sect.Addr
 	}
@@ -205,7 +219,7 @@ func (f *ElfFile) Symbols() ([]Symbol, error) {
 		}
 	}
 	return textStart, symtab, pclntab, nil
-}*/
+}
 
 // Return text section of the ELF file
 func (f *ElfFile) text() (textStart uint64, text []byte, err error) {
