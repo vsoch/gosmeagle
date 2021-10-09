@@ -9,6 +9,9 @@ type Parameter interface {
 	GetName() string
 }
 
+// A General Location description holds a variable or function
+type LocationDescription interface{}
+
 // A function description has a list of parameters
 type FunctionDescription struct {
 	Parameters []Parameter `json:"parameters,omitempty"`
