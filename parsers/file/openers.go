@@ -65,6 +65,7 @@ type Symbol interface {
 	GetRelocations() []Relocation
 	GetOriginal() interface{}
 	GetDirection() string // import or export based on symbol definition
+	GetIntArch() int
 }
 
 type Relocation struct {

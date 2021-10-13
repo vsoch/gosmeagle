@@ -11,7 +11,7 @@ import (
 )
 
 // ParseFunction parses a function parameters
-func ParseFunction(f *file.File, symbol file.Symbol, entry *file.DwarfEntry) descriptor.FunctionDescription {
+func ParseFunction(f *file.File, symbol file.Symbol, entry *file.DwarfEntry, disasm *file.Disasm) descriptor.FunctionDescription {
 
 	// Prepare list of function parameters
 	params := []descriptor.Parameter{}
@@ -36,7 +36,6 @@ func ParseFunction(f *file.File, symbol file.Symbol, entry *file.DwarfEntry) des
 			params = append(params, param)
 		}
 	}
-
 	// TODO do we need a location here too?
 	return descriptor.FunctionDescription{Parameters: params, Name: symbol.GetName(), Type: "Function"}
 }
@@ -125,6 +124,7 @@ func ParsePointerType(c file.Component, d *dwarf.Data, symbol file.Symbol, indir
 	}
 
 	// We only know the direction if we have a symbol
+	// But what about call sites? Why are they all imports?
 	direction := ""
 	if symbol != nil {
 		direction = symbol.GetDirection()
