@@ -16,17 +16,8 @@ type DwarfEntry interface {
 	GetType() *dwarf.Type
 }
 
-const DW_OP_addr = 0x3
-
 // Types that we need to parse
 type FunctionEntry struct {
-	Entry  *dwarf.Entry
-	Type   *dwarf.Type
-	Params []FormalParamEntry
-	Data   *dwarf.Data
-}
-
-type CallSiteEntry struct {
 	Entry  *dwarf.Entry
 	Type   *dwarf.Type
 	Params []FormalParamEntry
@@ -76,13 +67,10 @@ func GetUnderlyingType(entry *dwarf.Entry, data *dwarf.Data) (dwarf.Type, error)
 // Expose data and type
 func (f *FunctionEntry) GetData() *dwarf.Data   { return f.Data }
 func (v *VariableEntry) GetData() *dwarf.Data   { return v.Data }
-func (c *CallSiteEntry) GetData() *dwarf.Data   { return c.Data }
 func (f *FunctionEntry) GetType() *dwarf.Type   { return f.Type }
 func (v *VariableEntry) GetType() *dwarf.Type   { return v.Type }
-func (c *CallSiteEntry) GetType() *dwarf.Type   { return c.Type }
 func (f *FunctionEntry) GetEntry() *dwarf.Entry { return f.Entry }
 func (v *VariableEntry) GetEntry() *dwarf.Entry { return v.Entry }
-func (c *CallSiteEntry) GetEntry() *dwarf.Entry { return c.Entry }
 
 // Get the name of the entry or formal param
 func (f *FunctionEntry) Name() string {
@@ -96,12 +84,6 @@ func (f *FunctionEntry) Name() string {
 		return "anonymous"
 	}
 	return functionName.(string)
-}
-
-// Name of a callsite entry
-func (c *CallSiteEntry) Name() string {
-	fmt.Println(c)
-	return "CALLSITE"
 }
 
 // Variable components is just one for the variable
@@ -173,16 +155,6 @@ func GetStringType(t dwarf.Type) string {
 		fmt.Println("Unaccounted for type", reflect.TypeOf(t.Common().Original))
 	}
 	return "Unknown"
-}
-
-// Function components are the associated fields
-func (c *CallSiteEntry) GetComponents() []Component {
-
-	comps := []Component{}
-	for _, param := range c.Params {
-		fmt.Println(param)
-	}
-	return comps
 }
 
 // Function components are the associated fields
@@ -349,11 +321,6 @@ func ParseFormalParameter(d *dwarf.Data, entry *dwarf.Entry) FormalParamEntry {
 // Populate a function entry
 func ParseFunction(d *dwarf.Data, entry *dwarf.Entry, params []FormalParamEntry) DwarfEntry {
 	return &FunctionEntry{Entry: entry, Data: d, Params: params}
-}
-
-// Populate a call site entry
-func ParseCallSite(d *dwarf.Data, entry *dwarf.Entry, params []FormalParamEntry) DwarfEntry {
-	return &CallSiteEntry{Entry: entry, Data: d, Params: params}
 }
 
 // Populate a variable entry
