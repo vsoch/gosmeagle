@@ -24,6 +24,12 @@ type FunctionEntry struct {
 	Data   *dwarf.Data
 }
 
+// Preparing a call site to link to a function / caller
+type CallSite struct {
+	Entry  dwarf.Entry
+	Params []dwarf.Entry
+}
+
 // Types that we need to parse
 type VariableEntry struct {
 	Entry  *dwarf.Entry
@@ -203,6 +209,12 @@ func ParseDwarf(dwf *dwarf.Data) map[string]map[string]DwarfEntry {
 	var functionEntry *dwarf.Entry
 	var params []FormalParamEntry
 
+	// Save a cache of call sites, params, and subprogram locations
+	var callSite *dwarf.Entry
+	var callSites []CallSite
+	var callSiteParams []dwarf.Entry
+	subprograms := map[dwarf.Offset]dwarf.Entry{}
+
 	for entry, err := entryReader.Next(); entry != nil; entry, err = entryReader.Next() {
 
 		// Reached end of file
@@ -212,8 +224,29 @@ func ParseDwarf(dwf *dwarf.Data) map[string]map[string]DwarfEntry {
 
 		switch entry.Tag {
 
+		// DW_TAG_GNU_call_site is older version
+		case 0x4109, dwarf.TagCallSite, 0x44:
+
+			// If we have a previous function entry, add it
+			if callSite != nil {
+				callSites = append(callSites, CallSite{Entry: (*callSite), Params: callSiteParams})
+			}
+
+			// Reset params and set new function entry
+			callSite = entry
+			params = []FormalParamEntry{}
+
+		// DW_TAG_GNU_call_site_parameter
+		case 0x410a, dwarf.TagCallSiteParameter, 0x45:
+			callSiteParams = append(callSiteParams, (*entry))
+
+		// We found a function - hold onto it for any params
+		case dwarf.TagClassType:
+			subprograms[entry.Offset] = (*entry)
+
 		// We found a function - hold onto it for any params
 		case dwarf.TagSubprogram:
+			subprograms[entry.Offset] = (*entry)
 
 			// If we have a previous function entry, add it
 			if functionEntry != nil {
@@ -241,6 +274,9 @@ func ParseDwarf(dwf *dwarf.Data) map[string]map[string]DwarfEntry {
 		}
 	}
 
+	// Match call sites to subprograms
+	lookup["calls"] = ParseCallSites(dwf, &callSites, &subprograms)
+
 	// Parse the last function entry
 	if functionEntry != nil {
 		newEntry := ParseFunction(dwf, functionEntry, params)
@@ -248,6 +284,33 @@ func ParseDwarf(dwf *dwarf.Data) map[string]map[string]DwarfEntry {
 	}
 
 	return lookup
+}
+
+// Parse Call sites into a map of DwarfEntry
+func ParseCallSites(d *dwarf.Data, callSites *[]CallSite, subprograms *map[dwarf.Offset]dwarf.Entry) map[string]DwarfEntry {
+	entries := map[string]DwarfEntry{}
+
+	for _, cs := range *callSites {
+		loc := cs.Entry.Val(dwarf.AttrLocation)
+		if loc == nil {
+			loc = cs.Entry.Val(dwarf.AttrCallOrigin)
+		}
+		if loc != nil {
+			programEntry, ok := (*subprograms)[loc.(dwarf.Offset)]
+			if ok {
+
+				// NOTE that we have values here, type []uint8 p.Val(dwarf.AttrCallValue) we aren't parsing!
+				// TODO not sure how to look up location in location lists
+				newEntry := FunctionEntry{Entry: &programEntry, Data: d}
+				entries[newEntry.Name()] = &newEntry
+			}
+
+			// TODO need to handle these tail calls!
+			// These are call sites with CallTailCall true, meaning we need
+			// another way to look them up, maybe the return PC?
+		}
+	}
+	return entries
 }
 
 // Populate a formal parameter

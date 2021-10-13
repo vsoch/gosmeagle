@@ -42,6 +42,7 @@ type ElfSymbol struct {
 	Version     string       // Library name
 	Relocations []Relocation // in increasing Addr order
 	Original    elf.Symbol   // hold the original symbol
+	ArchInt     int
 }
 
 // And functions required for an elf symbol
@@ -53,6 +54,9 @@ func (s *ElfSymbol) GetLibrary() string {
 }
 func (s *ElfSymbol) GetVersion() string {
 	return s.Version
+}
+func (s *ElfSymbol) GetIntArch() int {
+	return s.ArchInt
 }
 
 // GetDirection determines if we have import/export based on definition
@@ -185,7 +189,7 @@ func (f *ElfFile) parseSymbols(elfSyms []elf.Symbol) ([]Symbol, error) {
 
 		// Assume to start we don't know the code
 		symbol := ElfSymbol{Address: s.Value, Type: symType, Binding: binding, Version: s.Version,
-			Name: s.Name, Size: int64(s.Size), Code: '?', Original: s, Library: s.Library}
+			Name: s.Name, Size: int64(s.Size), Code: '?', Original: s, Library: s.Library, ArchInt: int(f.elf.Machine)}
 
 		// Add the correct code for the symbol
 		setSymbolCode(&s, &symbol, f)
@@ -194,13 +198,28 @@ func (f *ElfFile) parseSymbols(elfSyms []elf.Symbol) ([]Symbol, error) {
 	return syms, nil
 }
 
-// Get dynamic symbols for the elf file
+// Get all symbols for the elf file (but not imported)
 func (f *ElfFile) Symbols() ([]Symbol, error) {
 	elfSyms, err := f.elf.Symbols()
 	if err != nil {
 		return nil, err
 	}
 	return f.parseSymbols(elfSyms)
+}
+
+// getString extracts a string from an ELF string table.
+// https://cs.opensource.google/go/go/+/master:src/debug/elf/file.go;drc=master;l=576
+func getString(section []byte, start int) (string, bool) {
+	if start < 0 || start >= len(section) {
+		return "", false
+	}
+
+	for end := start; end < len(section); end++ {
+		if section[end] == 0 {
+			return string(section[start:end]), true
+		}
+	}
+	return "", false
 }
 
 // PCLineTable is renamed from pcln
@@ -253,6 +272,8 @@ func (f *ElfFile) GoArch() string {
 	}
 	return ""
 }
+
+// Return integer of
 
 // loadAddress returns the load address
 func (f *ElfFile) loadAddress() (uint64, error) {

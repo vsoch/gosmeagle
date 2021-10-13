@@ -16,6 +16,7 @@ import (
 type Corpus struct {
 	Library   string                                      `json:"library"`
 	Locations []map[string]descriptor.LocationDescription `json:"locations,omitempty"`
+	Disasm    *file.Disasm                                `json:"-"`
 }
 
 // Get a corpus from a filename
@@ -73,6 +74,16 @@ func Load(filename string) Corpus {
 
 func (c *Corpus) Parse(f *file.File) {
 
+	// Disassemble first for locations
+	disasm, err := f.Disasm()
+	if err != nil {
+		log.Fatalf("Cannot disassemble binary: %x", err)
+	}
+	c.Disasm = disasm
+
+	// Prepare a symbol lookup for assembly and call sites - main, etc. won't be in dynamic symbol table
+	// asm := c.Disasm.GetGNUAssembly()
+
 	// Parse dwarf for each entry to use
 	lookup := f.ParseDwarf()
 
@@ -84,6 +95,8 @@ func (c *Corpus) Parse(f *file.File) {
 		if err != nil {
 			log.Fatalf("Issue retriving symbols from %s", c.Library)
 		}
+
+		// TODO we don't do anything with call sites here
 		for _, symbol := range symbols {
 			switch symbol.GetType() {
 			case "STT_FUNC":
@@ -100,7 +113,6 @@ func (c *Corpus) Parse(f *file.File) {
 				if ok && symbol.GetBinding() == "STB_GLOBAL" {
 					c.parseVariable(f, symbol, &entry)
 				}
-
 			}
 		}
 	}
@@ -111,7 +123,7 @@ func (c *Corpus) parseFunction(f *file.File, symbol file.Symbol, entry *file.Dwa
 
 	switch f.GoArch() {
 	case "amd64":
-		newFunction := x86_64.ParseFunction(f, symbol, entry)
+		newFunction := x86_64.ParseFunction(f, symbol, entry, c.Disasm)
 		loc := map[string]descriptor.LocationDescription{}
 		loc["function"] = newFunction
 		c.Locations = append(c.Locations, loc)
@@ -125,7 +137,6 @@ func (c *Corpus) parseVariable(f *file.File, symbol file.Symbol, entry *file.Dwa
 
 	switch f.GoArch() {
 	case "amd64":
-
 		// Don't allow variables without name or type
 		variable := x86_64.ParseVariable(f, symbol, entry)
 		if !reflect.DeepEqual(variable, descriptor.VariableDescription{}) {

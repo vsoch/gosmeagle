@@ -40,6 +40,7 @@ type Disasm struct {
 	goarch    string           // GOARCH string
 	disasm    disasmFunc       // disassembler function for goarch
 	byteOrder binary.ByteOrder // byte order for goarch
+	gnulookup gnuFunc          // Lookup GNU assembly
 }
 
 // Disasm returns a disassembler for the file f.
@@ -49,11 +50,19 @@ func (e *Entry) Disasm() (*Disasm, error) {
 		return nil, err
 	}
 
+	// We want to disassemble both known and unknown (imported) symbols
+	// TODO we could use this to derive import status?
+	dyns, err := e.DynamicSymbols()
+	if err != nil {
+		return nil, err
+	}
+
 	pcln, err := e.PCLineTable()
 	if err != nil {
 		return nil, err
 	}
 
+	syms = append(syms, dyns...)
 	textStart, textBytes, err := e.Text()
 	if err != nil {
 		return nil, err
@@ -61,6 +70,7 @@ func (e *Entry) Disasm() (*Disasm, error) {
 
 	goarch := e.GOARCH()
 	disasm := disasms[goarch]
+	gnulookup := gnuLookup[goarch]
 	byteOrder := byteOrders[goarch]
 	if disasm == nil || byteOrder == nil {
 		return nil, fmt.Errorf("unsupported architecture")
@@ -85,13 +95,14 @@ func (e *Entry) Disasm() (*Disasm, error) {
 		textEnd:   textStart + uint64(len(textBytes)),
 		goarch:    goarch,
 		disasm:    disasm,
+		gnulookup: gnulookup,
 		byteOrder: byteOrder,
 	}
 	return d, nil
 }
 
 // lookup finds the symbol name containing addr.
-func (d *Disasm) lookup(addr uint64) (name string, base uint64) {
+func (d *Disasm) Lookup(addr uint64) (name string, base uint64) {
 	i := sort.Search(len(d.syms), func(i int) bool { return addr < d.syms[i].GetAddress() })
 	if i > 0 {
 		s := d.syms[i-1]
@@ -267,6 +278,109 @@ func (d *Disasm) Print(w io.Writer, filter *regexp.Regexp, start, end uint64, pr
 	bw.Flush()
 }
 
+// GNUAssembly holds parsed assembly for symbols
+type Instruction struct {
+	Text     string
+	Source   string
+	Assembly string
+	PCLine   uint64
+	Size     uint64
+}
+
+type GNUAssembly struct {
+	SymbolName   string
+	File         string
+	PCLine       uint64
+	SrcLine      string
+	Instructions []Instruction
+}
+
+type GNUAssemblyLookup map[string]GNUAssembly
+
+// GetAssembly returns a full data structure of instructions to further parse
+func (d *Disasm) GetGNUAssembly() GNUAssemblyLookup {
+	fc := NewFileCache(8)
+
+	asm := map[string]GNUAssembly{}
+
+	for _, sym := range d.syms {
+		symStart := sym.GetAddress()
+		symEnd := sym.GetAddress() + uint64(sym.GetSize())
+		relocs := sym.GetRelocations()
+		if sym.GetCode() != 'T' && sym.GetCode() != 't' ||
+			symStart < d.textStart ||
+			symEnd <= d.textStart ||
+			symEnd-d.textStart > uint64(len(d.text)) {
+			continue
+		}
+
+		file, _, _ := d.pcln.PCToLine(sym.GetAddress())
+		entry := GNUAssembly{SymbolName: sym.GetName(), File: file}
+		code := d.text[:symEnd-d.textStart]
+
+		var lastFile string
+		var lastLine int
+
+		instructions := d.DecodeGNUAssembly(symStart, symEnd, relocs, func(pc, size uint64, file string, line int, text string) Instruction {
+			i := pc - d.textStart
+
+			instruction := Instruction{PCLine: pc, Size: size}
+			if file != lastFile || line != lastLine {
+				if srcLine, err := fc.Line(file, line); err == nil {
+					instruction.Source = fmt.Sprintf("%s", srcLine)
+				}
+				lastFile, lastLine = file, line
+			}
+
+			if size%4 != 0 || d.goarch == "386" || d.goarch == "amd64" {
+				// Print instruction as bytes.
+				instruction.Text = fmt.Sprintf("%x", code[i:i+size])
+			} else {
+				// Print instruction as 32-bit words.
+				for j := uint64(0); j < size; j += 4 {
+					if j > 0 {
+						text += " "
+					}
+					instruction.Text = fmt.Sprintf("%08x", d.byteOrder.Uint32(code[i+j:]))
+				}
+			}
+			return instruction
+		})
+		entry.Instructions = append(entry.Instructions, instructions...)
+		asm[entry.SymbolName] = entry
+	}
+	return asm
+}
+
+// DecodeGNUAssembly disassembles the text segment range [start, end), calling f for each instruction.
+func (d *Disasm) DecodeGNUAssembly(start, end uint64, relocs []Relocation, f func(pc, size uint64, file string, line int, text string) Instruction) []Instruction {
+	if start < d.textStart {
+		start = d.textStart
+	}
+	if end > d.textEnd {
+		end = d.textEnd
+	}
+
+	instructions := []Instruction{}
+	code := d.text[:end-d.textStart]
+	for pc := start; pc < end; {
+		i := pc - d.textStart
+		text, size := d.gnulookup(code[i:], pc, d.byteOrder)
+		file, line, _ := d.pcln.PCToLine(pc)
+		sep := "\t"
+		for len(relocs) > 0 && relocs[0].Address < i+uint64(size) {
+			text += sep + relocs[0].Stringer.String(pc-start)
+			sep = " "
+			relocs = relocs[1:]
+		}
+		instruction := f(pc, uint64(size), file, line, text)
+		instruction.Text = text
+		instructions = append(instructions, instruction)
+		pc += uint64(size)
+	}
+	return instructions
+}
+
 // Decode disassembles the text segment range [start, end), calling f for each instruction.
 func (d *Disasm) Decode(start, end uint64, relocs []Relocation, gnuAsm bool, f func(pc, size uint64, file string, line int, text string)) {
 	if start < d.textStart {
@@ -276,7 +390,7 @@ func (d *Disasm) Decode(start, end uint64, relocs []Relocation, gnuAsm bool, f f
 		end = d.textEnd
 	}
 	code := d.text[:end-d.textStart]
-	lookup := d.lookup
+	lookup := d.Lookup
 	for pc := start; pc < end; {
 		i := pc - d.textStart
 		text, size := d.disasm(code[i:], pc, lookup, d.byteOrder, gnuAsm)
@@ -294,6 +408,8 @@ func (d *Disasm) Decode(start, end uint64, relocs []Relocation, gnuAsm bool, f f
 
 type lookupFunc = func(addr uint64) (sym string, base uint64)
 type disasmFunc func(code []byte, pc uint64, lookup lookupFunc, ord binary.ByteOrder, _ bool) (text string, size int)
+
+// Disasm Functions
 
 func disasm_386(code []byte, pc uint64, lookup lookupFunc, _ binary.ByteOrder, gnuAsm bool) (string, int) {
 	return disasm_x86(code, pc, lookup, 32, gnuAsm)
@@ -392,6 +508,77 @@ var disasms = map[string]disasmFunc{
 	"arm64":   disasm_arm64,
 	"ppc64":   disasm_ppc64,
 	"ppc64le": disasm_ppc64,
+}
+
+// GNU assembly lookup
+
+type gnuFunc func(code []byte, pc uint64, ord binary.ByteOrder) (text string, size int)
+
+func gnulookup_386(code []byte, pc uint64, _ binary.ByteOrder) (string, int) {
+	return gnulookup_x86(code, pc, 32)
+}
+
+func gnulookup_amd64(code []byte, pc uint64, _ binary.ByteOrder) (string, int) {
+	return gnulookup_x86(code, pc, 64)
+}
+
+func gnulookup_x86(code []byte, pc uint64, arch int) (string, int) {
+	inst, err := x86asm.Decode(code, arch)
+	var text string
+	size := inst.Len
+	if err != nil || size == 0 || inst.Op == 0 {
+		size = 1
+		text = "?"
+	} else {
+		text = fmt.Sprintf("%s", x86asm.GNUSyntax(inst, pc, nil))
+	}
+	return text, size
+}
+
+func gnulookup_arm(code []byte, pc uint64, _ binary.ByteOrder) (string, int) {
+	inst, err := armasm.Decode(code, armasm.ModeARM)
+	var text string
+	size := inst.Len
+	if err != nil || size == 0 || inst.Op == 0 {
+		size = 4
+		text = "?"
+	} else {
+		text = fmt.Sprintf("%s", armasm.GNUSyntax(inst))
+	}
+	return text, size
+}
+
+func gnulookup_arm64(code []byte, pc uint64, byteOrder binary.ByteOrder) (string, int) {
+	inst, err := arm64asm.Decode(code)
+	var text string
+	if err != nil || inst.Op == 0 {
+		text = "?"
+	} else {
+		text = fmt.Sprintf("%s", arm64asm.GNUSyntax(inst))
+	}
+	return text, 4
+}
+
+func gnulookup_ppc64(code []byte, pc uint64, byteOrder binary.ByteOrder) (string, int) {
+	inst, err := ppc64asm.Decode(code, byteOrder)
+	var text string
+	size := inst.Len
+	if err != nil || size == 0 {
+		size = 4
+		text = "?"
+	} else {
+		text = fmt.Sprintf("%s", ppc64asm.GNUSyntax(inst, pc))
+	}
+	return text, size
+}
+
+var gnuLookup = map[string]gnuFunc{
+	"386":     gnulookup_386,
+	"amd64":   gnulookup_amd64,
+	"arm":     gnulookup_arm,
+	"arm64":   gnulookup_arm64,
+	"ppc64":   gnulookup_ppc64,
+	"ppc64le": gnulookup_ppc64,
 }
 
 var byteOrders = map[string]binary.ByteOrder{
