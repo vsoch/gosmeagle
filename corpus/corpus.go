@@ -83,7 +83,6 @@ func (c *Corpus) Parse(f *file.File) {
 
 	// Prepare a symbol lookup for assembly and call sites - main, etc. won't be in dynamic symbol table
 	// asm := c.Disasm.GetGNUAssembly()
-	// asm.GetCallSites()
 
 	// Parse dwarf for each entry to use
 	lookup := f.ParseDwarf()

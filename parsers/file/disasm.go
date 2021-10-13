@@ -297,18 +297,6 @@ type GNUAssembly struct {
 
 type GNUAssemblyLookup map[string]GNUAssembly
 
-// GetCallSites is not currently used - parsing params from assembly is probably impossible
-func (g GNUAssemblyLookup) GetCallSites() {
-	for name, entry := range g {
-		fmt.Println(name)
-		for _, inst := range entry.Instructions {
-			if strings.HasPrefix(inst.Text, "callq") {
-				fmt.Println(inst)
-			}
-		}
-	}
-}
-
 // GetAssembly returns a full data structure of instructions to further parse
 func (d *Disasm) GetGNUAssembly() GNUAssemblyLookup {
 	fc := NewFileCache(8)
