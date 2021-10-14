@@ -1,7 +1,6 @@
 package corpus
 
 import (
-	"fmt"
 	"github.com/mitchellh/mapstructure"
 	"github.com/vsoch/gosmeagle/descriptor"
 )
@@ -54,7 +53,6 @@ func Load(filename string) LoadedCorpus {
 	corp := LoadedCorpus{Library: filename}
 	corp.Functions = funcs
 	corp.Variables = vars
-	fmt.Println(corp)
 	return corp
 }
 
