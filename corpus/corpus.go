@@ -52,8 +52,8 @@ func GetDisasm(filename string) *file.Disasm {
 	return disasm
 }
 
-// Load a corpus from Json
-func Load(filename string) Corpus {
+// load a corpus from Json (helper to public Load)
+func load(filename string) Corpus {
 
 	jsonFile, err := os.Open(filename)
 	if err != nil {
