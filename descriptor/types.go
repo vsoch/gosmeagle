@@ -7,6 +7,8 @@ type Parameter interface {
 	GetSize() int64
 	GetClass() string
 	GetName() string
+	GetLocation() string
+	GetType() string
 }
 
 // A General Location description holds a variable or function
@@ -52,6 +54,22 @@ func (f ArrayParameter) GetName() string     { return f.Name }
 func (f QualifiedParameter) GetName() string { return f.Name }
 func (f BasicParameter) GetName() string     { return f.Name }
 func (f EnumParameter) GetName() string      { return f.Name }
+
+func (f FunctionParameter) GetLocation() string  { return f.Location }
+func (f StructureParameter) GetLocation() string { return f.Location }
+func (f PointerParameter) GetLocation() string   { return f.Location }
+func (f ArrayParameter) GetLocation() string     { return f.Location }
+func (f QualifiedParameter) GetLocation() string { return f.Location }
+func (f BasicParameter) GetLocation() string     { return f.Location }
+func (f EnumParameter) GetLocation() string      { return f.Location }
+
+func (f FunctionParameter) GetType() string  { return f.Type }
+func (f StructureParameter) GetType() string { return f.Type }
+func (f PointerParameter) GetType() string   { return f.Type }
+func (f ArrayParameter) GetType() string     { return f.Type }
+func (f QualifiedParameter) GetType() string { return f.Type }
+func (f BasicParameter) GetType() string     { return f.Type }
+func (f EnumParameter) GetType() string      { return f.Type }
 
 type StructureParameter struct {
 	Name     string      `json:"name,omitempty"`

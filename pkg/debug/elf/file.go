@@ -1185,7 +1185,8 @@ func (f *File) DWARF() (*dwarf.Data, error) {
 
 	// There are many DWARf sections, but these are the ones
 	// the debug/dwarf package started with.
-	var dat = map[string][]byte{"abbrev": nil, "info": nil, "str": nil, "line": nil, "ranges": nil}
+	// Updated by @vsoch to parse debug_loc
+	var dat = map[string][]byte{"abbrev": nil, "info": nil, "str": nil, "line": nil, "ranges": nil, "loc": nil}
 	for i, s := range f.Sections {
 		suffix := dwarfSuffix(s)
 		if suffix == "" {
@@ -1201,7 +1202,7 @@ func (f *File) DWARF() (*dwarf.Data, error) {
 		dat[suffix] = b
 	}
 
-	d, err := dwarf.New(dat["abbrev"], nil, nil, dat["info"], dat["line"], nil, dat["ranges"], dat["str"])
+	d, err := dwarf.New(dat["abbrev"], nil, nil, dat["info"], dat["line"], nil, dat["ranges"], dat["str"], dat["loc"])
 	if err != nil {
 		return nil, err
 	}

@@ -24,12 +24,14 @@ type Data struct {
 	pubnames []byte
 	ranges   []byte
 	str      []byte
+	locs     []byte
 
 	// New sections added in DWARF 5.
 	addr       []byte
 	lineStr    []byte
 	strOffsets []byte
 	rngLists   []byte
+	LocLists   []byte
 
 	// parsed data
 	abbrevCache map[uint64]abbrevTable
@@ -51,7 +53,10 @@ var errSegmentSelector = errors.New("non-zero segment_selector size not supporte
 // The []byte arguments are the data from the corresponding debug section
 // in the object file; for example, for an ELF object, abbrev is the contents of
 // the ".debug_abbrev" section.
-func New(abbrev, aranges, frame, info, line, pubnames, ranges, str []byte) (*Data, error) {
+func New(abbrev, aranges, frame, info, line, pubnames, ranges, str, loc []byte) (*Data, error) {
+
+	// TODO can parse location lists here
+	//fmt.Println(loc)
 	d := &Data{
 		abbrev:      abbrev,
 		aranges:     aranges,
@@ -61,6 +66,7 @@ func New(abbrev, aranges, frame, info, line, pubnames, ranges, str []byte) (*Dat
 		pubnames:    pubnames,
 		ranges:      ranges,
 		str:         str,
+		locs:        loc,
 		abbrevCache: make(map[uint64]abbrevTable),
 		TypeCache:   make(map[Offset]Type),
 		StructCache: make(map[string]*StructType),
@@ -118,6 +124,9 @@ func (d *Data) AddTypes(name string, types []byte) error {
 func (d *Data) AddSection(name string, contents []byte) error {
 	var err error
 	switch name {
+	// Added to get location lists @vsoch
+	case ".debug_loc":
+		d.LocLists = contents
 	case ".debug_addr":
 		d.addr = contents
 	case ".debug_line_str":
