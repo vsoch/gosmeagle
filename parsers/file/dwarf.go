@@ -234,7 +234,7 @@ func ParseDwarf(dwf *dwarf.Data) map[string]map[string]DwarfEntry {
 
 			// Reset params and set new function entry
 			callSite = entry
-			params = []FormalParamEntry{}
+			callSiteParams = []dwarf.Entry{}
 
 		// DW_TAG_GNU_call_site_parameter
 		case 0x410a, dwarf.TagCallSiteParameter, 0x45:
