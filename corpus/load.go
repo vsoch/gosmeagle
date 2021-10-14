@@ -6,14 +6,15 @@ import (
 	"github.com/vsoch/gosmeagle/descriptor"
 )
 
-// A loaded corpus keeps types separate
-// Haven't needed to convert between them, but could if needed
+// LoadedCorpus keeps types separate for easy parsing / interaction
 type LoadedCorpus struct {
 	Functions []descriptor.FunctionDescription
 	Variables []descriptor.VariableDescription
 	Library   string
 }
 
+// ToCorpus converts a loaded corpus (intended to modify or interact with)
+// to a corpus with a list of locations we can save
 func (c *LoadedCorpus) ToCorpus() *Corpus {
 
 	locs := []map[string]descriptor.LocationDescription{}
