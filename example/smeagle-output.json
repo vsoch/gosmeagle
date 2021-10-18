@@ -1,0 +1,60 @@
+{
+ "library": "/data/libtest.so",
+ "locations":
+ [
+   {
+    "function": {
+      "name": "bigcall",
+      "parameters": [
+        {
+          "name":"a",
+          "type":"long int",
+          "class":"Integer",
+          "location":"%rdi",
+          "direction":"import",
+          "size":"8"
+        },
+        {
+          "name":"b",
+          "type":"long int",
+          "class":"Integer",
+          "location":"%rsi",
+          "direction":"import",
+          "size":"8"
+        },
+        {
+          "name":"c",
+          "type":"long int",
+          "class":"Integer",
+          "location":"%rdx",
+          "direction":"import",
+          "size":"8"
+        },
+        {
+          "name":"d",
+          "type":"long int",
+          "class":"Integer",
+          "location":"%rcx",
+          "direction":"import",
+          "size":"8"
+        },
+        {
+          "name":"e",
+          "type":"long int",
+          "class":"Integer",
+          "location":"%r8",
+          "direction":"import",
+          "size":"8"
+        },
+        {
+          "name":"f",
+          "type":"__int128",
+          "class":"Integer",
+          "location":"framebase+8",
+          "direction":"import",
+          "size":"16"
+        }
+    ]
+   }}
+]
+}
