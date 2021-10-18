@@ -3,6 +3,8 @@ package corpus
 import (
 	"github.com/mitchellh/mapstructure"
 	"github.com/vsoch/gosmeagle/descriptor"
+	"log"
+	"strconv"
 )
 
 // LoadedCorpus keeps types separate for easy parsing / interaction
@@ -66,6 +68,11 @@ func convertFunctionDescriptor(item interface{}) descriptor.FunctionDescription 
 	for _, param := range params {
 		s := descriptor.FunctionParameter{}
 		mapstructure.Decode(param, &s)
+		sizeInt, err := strconv.ParseInt(param.(map[string]interface{})["size"].(string), 10, 64)
+		if err != nil {
+			log.Fatalf("Error converting string of size to int64: %x", err)
+		}
+		s.Size = sizeInt
 		desc.Parameters = append(desc.Parameters, s)
 	}
 	return desc

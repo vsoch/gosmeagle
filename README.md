@@ -117,6 +117,14 @@ TEXT bigcall(SB)
 
 Note that this library is under development, so stay tuned!
 
+## Load
+
+To test loading a json corpus, we have the load command:
+
+```bash
+$ go run main.go load example/smeagle-output.json
+```
+
 ## Background
 
 I started this library after discussion (see [this thread](https://twitter.com/vsoch/status/1437535961131352065)) and wanting to extend Dwarf a bit and also reproduce [Smeagle](https://github.com/buildsi/Smeagle) in Go.
