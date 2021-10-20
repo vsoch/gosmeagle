@@ -30,6 +30,9 @@ func GetCorpus(filename string) Corpus {
 	}
 	defer f.Close()
 
+	// Note that a a file can produce relocations to print
+	// file.PrintRelocationTable(f.GetRelocations())
+
 	// Populate the corpus depending on the Architecture
 	corpus.Parse(f)
 	return corpus
@@ -98,6 +101,7 @@ func (c *Corpus) Parse(f *file.File) {
 
 		// TODO we don't do anything with call sites here
 		for _, symbol := range symbols {
+
 			switch symbol.GetType() {
 			case "STT_FUNC":
 				entry, ok := lookup["functions"][symbol.GetName()]

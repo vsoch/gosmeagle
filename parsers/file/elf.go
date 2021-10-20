@@ -7,6 +7,8 @@ import (
 	"github.com/vsoch/gosmeagle/pkg/debug/elf"
 	"io"
 	"log"
+	"reflect"
+	"unsafe"
 )
 
 type ElfFile struct {
@@ -28,6 +30,185 @@ func OpenElf(r io.ReaderAt) (rawFile, error) {
 		return nil, err
 	}
 	return &ElfFile{f}, nil
+}
+
+// GetRelocations from te entire elf file - yes this is ugly and redundant, please improve!
+func (f *ElfFile) GetRelocations() []Relocation {
+
+	elfsyms, _ := f.elf.Symbols()
+	syms, _ := f.parseSymbols(elfsyms)
+	elfsyms, _ = f.elf.DynamicSymbols()
+	dynamicSyms, _ := f.parseSymbols(elfsyms)
+
+	// Offset, Info, Type, Symbol Value, Symbol Name
+	relocations := []Relocation{}
+
+	// idx is section index
+	for idx, s := range f.elf.Sections {
+
+		// First top level - section32 vs section64
+		switch f.elf.Class {
+		case elf.ELFCLASS32:
+
+			switch s.Type {
+			case elf.SHT_REL:
+				var rel elf.Rela32
+				numRels := s.Size / uint64(unsafe.Sizeof(rel))
+				relocs := make([]elf.Rel32, numRels)
+				err := binary.Read(s.Open(), f.elf.ByteOrder, relocs)
+				if err != nil {
+					log.Fatalf("%x", err)
+				}
+				for _, r := range relocs {
+
+					offset := r.Off
+					relocType := elf.R_TYPE32(r.Info)
+					sym := elf.R_SYM32(r.Info)
+					info := elf.R_INFO(sym, relocType)
+					relocName := getRelocationType(relocType, f.elf.Machine)
+
+					var symName string
+					var symValue uint64
+
+					secIdx := f.elf.Sections[idx].Link
+					switch f.elf.Sections[secIdx].Name {
+					case ".dynsym", ".dynstr":
+						symbol := dynamicSyms[sym-1]
+						symName = symbol.GetName()
+						symValue = symbol.GetAddress()
+					case ".symtab":
+						symbol := syms[sym-1]
+						symName = symbol.GetName()
+						symValue = symbol.GetAddress()
+					default:
+						fmt.Printf("Cannot find section name", f.elf.Sections[secIdx].Name)
+						continue
+					}
+					newReloc := Relocation{SymbolName: symName, Offset: uint64(offset), SymbolValue: symValue, RelocType: relocName, Info: info}
+					relocations = append(relocations, newReloc)
+				}
+
+			case elf.SHT_RELA:
+				var rel elf.Rela32
+				numRels := s.Size / uint64(unsafe.Sizeof(rel))
+				relocs := make([]elf.Rela32, numRels)
+				err := binary.Read(s.Open(), f.elf.ByteOrder, relocs)
+				if err != nil {
+					log.Fatalf("%x", err)
+				}
+
+				for _, r := range relocs {
+					offset := r.Off
+					relocType := elf.R_TYPE32(r.Info)
+					sym := elf.R_SYM32(r.Info)
+					info := elf.R_INFO(sym, relocType)
+					relocName := getRelocationType(relocType, f.elf.Machine)
+
+					var symName string
+					var symValue uint64
+
+					secIdx := f.elf.Sections[idx].Link
+					switch f.elf.Sections[secIdx].Name {
+					case ".dynsym", ".dynstr":
+						symbol := dynamicSyms[sym-1]
+						symName = symbol.GetName()
+						symValue = symbol.GetAddress()
+					case ".symtab":
+						symbol := syms[sym-1]
+						symName = symbol.GetName()
+						symValue = symbol.GetAddress()
+					default:
+						fmt.Printf("Cannot find section name", f.elf.Sections[secIdx].Name)
+						continue
+					}
+					newReloc := Relocation{SymbolName: symName, Offset: uint64(offset), SymbolValue: symValue, RelocType: relocName, Info: info}
+					relocations = append(relocations, newReloc)
+				}
+			}
+
+		case elf.ELFCLASS64:
+
+			switch s.Type {
+			case elf.SHT_REL:
+				var rel elf.Rela64
+				numRels := s.Size / uint64(unsafe.Sizeof(rel))
+				relocs := make([]elf.Rel64, numRels)
+				err := binary.Read(s.Open(), f.elf.ByteOrder, relocs)
+				if err != nil {
+					log.Fatalf("%x", err)
+				}
+				for _, r := range relocs {
+
+					offset := r.Off
+					relocType := elf.R_TYPE64(r.Info)
+					sym := elf.R_SYM64(r.Info)
+					info := elf.R_INFO(sym, relocType)
+					relocName := getRelocationType(relocType, f.elf.Machine)
+
+					var symName string
+					var symValue uint64
+
+					secIdx := f.elf.Sections[idx].Link
+					switch f.elf.Sections[secIdx].Name {
+					case ".dynsym", ".dynstr":
+						symbol := dynamicSyms[sym-1]
+						symName = symbol.GetName()
+						symValue = symbol.GetAddress()
+					case ".symtab":
+						symbol := syms[sym-1]
+						symName = symbol.GetName()
+						symValue = symbol.GetAddress()
+					default:
+						fmt.Printf("Cannot find section name", f.elf.Sections[secIdx].Name)
+						continue
+					}
+					newReloc := Relocation{SymbolName: symName, Offset: uint64(offset), SymbolValue: symValue, RelocType: relocName, Info: info}
+					relocations = append(relocations, newReloc)
+				}
+
+			case elf.SHT_RELA:
+				var rel elf.Rela64
+				numRels := s.Size / uint64(unsafe.Sizeof(rel))
+				relocs := make([]elf.Rela64, numRels)
+				err := binary.Read(s.Open(), f.elf.ByteOrder, relocs)
+				if err != nil {
+					log.Fatalf("%x", err)
+				}
+				for _, r := range relocs {
+
+					offset := r.Off
+					relocType := elf.R_TYPE64(r.Info)
+					sym := elf.R_SYM64(r.Info)
+					info := elf.R_INFO(sym, relocType)
+					relocName := getRelocationType(relocType, f.elf.Machine)
+
+					var symName string
+					var symValue uint64
+
+					secIdx := f.elf.Sections[idx].Link
+					switch f.elf.Sections[secIdx].Name {
+					case ".dynsym", ".dynstr":
+						symbol := dynamicSyms[sym-1]
+						symName = symbol.GetName()
+						symValue = symbol.GetAddress()
+					case ".symtab":
+						symbol := syms[sym-1]
+						symName = symbol.GetName()
+						symValue = symbol.GetAddress()
+					default:
+						fmt.Printf("Cannot find section name", f.elf.Sections[secIdx].Name)
+						continue
+					}
+					newReloc := Relocation{SymbolName: symName, Offset: uint64(offset), SymbolValue: symValue, RelocType: relocName, Info: info}
+					relocations = append(relocations, newReloc)
+				}
+			}
+
+		default:
+			log.Fatalf("Unknown section type.", reflect.TypeOf(s))
+		}
+	}
+	return relocations
 }
 
 // An Elf Symbol found in a file (e.g., ELF?)

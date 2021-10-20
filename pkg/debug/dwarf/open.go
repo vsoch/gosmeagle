@@ -58,15 +58,16 @@ func New(abbrev, aranges, frame, info, line, pubnames, ranges, str, loc []byte) 
 	// TODO can parse location lists here
 	//fmt.Println(loc)
 	d := &Data{
-		abbrev:      abbrev,
-		aranges:     aranges,
-		frame:       frame,
-		info:        info,
-		line:        line,
-		pubnames:    pubnames,
-		ranges:      ranges,
-		str:         str,
-		locs:        loc,
+		abbrev:   abbrev,
+		aranges:  aranges,
+		frame:    frame,
+		info:     info,
+		line:     line,
+		pubnames: pubnames,
+		ranges:   ranges,
+		str:      str,
+		locs:     loc,
+
 		abbrevCache: make(map[uint64]abbrevTable),
 		TypeCache:   make(map[Offset]Type),
 		StructCache: make(map[string]*StructType),

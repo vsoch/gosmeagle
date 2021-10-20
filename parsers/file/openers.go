@@ -34,6 +34,8 @@ type rawFile interface {
 	ParseDwarf() map[string]map[string]DwarfEntry
 	GoArch() string
 
+	GetRelocations() []Relocation
+
 	// renamed from pcln
 	PCLineTable() (textStart uint64, symtab, pclntab []byte, err error)
 	loadAddress() (uint64, error)
@@ -66,18 +68,6 @@ type Symbol interface {
 	GetOriginal() interface{}
 	GetDirection() string // import or export based on symbol definition
 	GetIntArch() int
-}
-
-type Relocation struct {
-	Address  uint64 // Address of first byte that reloc applies to.
-	Size     uint64 // Number of bytes
-	Stringer RelocStringer
-}
-
-type RelocStringer interface {
-	// insnOffset is the offset of the instruction containing the relocation
-	// from the start of the symbol containing the relocation.
-	String(insnOffset uint64) string
 }
 
 // We need to have multiple openers to handle different kinds of files
@@ -150,6 +140,10 @@ func (f *File) DWARF() (*dwarf.Data, error) {
 	return f.Entries[0].Dwarf()
 }
 
+func (f *File) GetRelocations() []Relocation {
+	return f.Entries[0].GetRelocations()
+}
+
 func (f *File) ParseDwarf() map[string]map[string]DwarfEntry {
 	dwf, err := f.Entries[0].Dwarf()
 	if err != nil {
@@ -165,6 +159,10 @@ func (e *Entry) Symbols() ([]Symbol, error) {
 	}
 	sort.Sort(SortByAddress(syms))
 	return syms, nil
+}
+
+func (e *Entry) GetRelocations() []Relocation {
+	return e.data.GetRelocations()
 }
 
 func (e *Entry) DynamicSymbols() ([]Symbol, error) {
