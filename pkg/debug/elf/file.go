@@ -1135,6 +1135,10 @@ func (f *File) DWARF() (*dwarf.Data, error) {
 			return s.Name[7:]
 		case strings.HasPrefix(s.Name, ".zdebug_"):
 			return s.Name[8:]
+
+		// Added by @vsoch to parse relocations on load
+		case strings.HasPrefix(s.Name, ".rela"):
+			return s.Name[1:]
 		default:
 			return ""
 		}
@@ -1168,9 +1172,11 @@ func (f *File) DWARF() (*dwarf.Data, error) {
 			if r.Type != SHT_RELA && r.Type != SHT_REL {
 				continue
 			}
+			// Comment out to try applying relocations!
 			if int(r.Info) != i {
 				continue
 			}
+
 			rd, err := r.Data()
 			if err != nil {
 				return nil, err
@@ -1186,7 +1192,7 @@ func (f *File) DWARF() (*dwarf.Data, error) {
 	// There are many DWARf sections, but these are the ones
 	// the debug/dwarf package started with.
 	// Updated by @vsoch to parse debug_loc
-	var dat = map[string][]byte{"abbrev": nil, "info": nil, "str": nil, "line": nil, "ranges": nil, "loc": nil}
+	var dat = map[string][]byte{"abbrev": nil, "info": nil, "str": nil, "line": nil, "ranges": nil, "loc": nil, "rela.plt": nil, "rela.dyn": nil}
 	for i, s := range f.Sections {
 		suffix := dwarfSuffix(s)
 		if suffix == "" {
@@ -1208,6 +1214,7 @@ func (f *File) DWARF() (*dwarf.Data, error) {
 	}
 
 	// Look for DWARF4 .debug_types sections and DWARF5 sections.
+	// Also parse relocations (added by @vsoch)
 	for i, s := range f.Sections {
 		suffix := dwarfSuffix(s)
 		if suffix == "" {
@@ -1217,7 +1224,6 @@ func (f *File) DWARF() (*dwarf.Data, error) {
 			// Already handled.
 			continue
 		}
-
 		b, err := sectionData(i, s)
 		if err != nil {
 			return nil, err

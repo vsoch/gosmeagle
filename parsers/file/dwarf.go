@@ -274,37 +274,48 @@ func ParseDwarf(dwf *dwarf.Data) map[string]map[string]DwarfEntry {
 		}
 	}
 
-	// Match call sites to subprograms
-	lookup["calls"] = ParseCallSites(dwf, &callSites, &subprograms)
-
 	// Parse the last function entry
 	if functionEntry != nil {
 		newEntry := ParseFunction(dwf, functionEntry, params)
 		lookup["functions"][newEntry.Name()] = newEntry
 	}
 
+	// Match call sites to subprograms
+	lookup["calls"] = ParseCallSites(dwf, &callSites, &subprograms, lookup["functions"])
 	return lookup
 }
 
 // Parse Call sites into a map of DwarfEntry
-func ParseCallSites(d *dwarf.Data, callSites *[]CallSite, subprograms *map[dwarf.Offset]dwarf.Entry) map[string]DwarfEntry {
+func ParseCallSites(d *dwarf.Data, callSites *[]CallSite, subprograms *map[dwarf.Offset]dwarf.Entry, functions map[string]DwarfEntry) map[string]DwarfEntry {
 	entries := map[string]DwarfEntry{}
 
 	for _, cs := range *callSites {
+
 		loc := cs.Entry.Val(dwarf.AttrLocation)
 		if loc == nil {
 			loc = cs.Entry.Val(dwarf.AttrCallOrigin)
 		}
 		if loc != nil {
 			programEntry, ok := (*subprograms)[loc.(dwarf.Offset)]
+
 			if ok {
+
+				name := programEntry.Val(dwarf.AttrLinkageName)
+				if name == "" {
+					name = programEntry.Val(dwarf.AttrName)
+				}
+				function, ok := functions[name.(string)]
+				if ok {
+					entries[name.(string)] = function
+				} else {
+					fmt.Println("no function entry for", cs)
+				}
 
 				// NOTE that we have values here, type []uint8 p.Val(dwarf.AttrCallValue) we aren't parsing!
 				// TODO not sure how to look up location in location lists
-				newEntry := FunctionEntry{Entry: &programEntry, Data: d}
-				entries[newEntry.Name()] = &newEntry
+				//newEntry := FunctionEntry{Entry: &programEntry, Data: d}
+				//entries[newEntry.Name()] = &newEntry
 			}
-
 			// TODO need to handle these tail calls!
 			// These are call sites with CallTailCall true, meaning we need
 			// another way to look them up, maybe the return PC?
