@@ -9,6 +9,7 @@ type Parameter interface {
 	GetName() string
 	GetLocation() string
 	GetType() string
+	GetDirection() string
 }
 
 // A General Location description holds a variable or function
@@ -18,6 +19,7 @@ type LocationDescription interface{}
 type FunctionDescription struct {
 	Parameters []Parameter `json:"parameters,omitempty"`
 	Name       string      `json:"name"`
+	Direction  string      `json:"direction,omitempty"`
 	Type       string      `json:"type"`
 }
 
@@ -71,13 +73,22 @@ func (f QualifiedParameter) GetType() string { return f.Type }
 func (f BasicParameter) GetType() string     { return f.Type }
 func (f EnumParameter) GetType() string      { return f.Type }
 
+func (f FunctionParameter) GetDirection() string  { return f.Direction }
+func (f StructureParameter) GetDirection() string { return f.Direction }
+func (f PointerParameter) GetDirection() string   { return f.Direction }
+func (f ArrayParameter) GetDirection() string     { return f.Direction }
+func (f QualifiedParameter) GetDirection() string { return f.Direction }
+func (f BasicParameter) GetDirection() string     { return f.Direction }
+func (f EnumParameter) GetDirection() string      { return f.Direction }
+
 type StructureParameter struct {
-	Name     string      `json:"name,omitempty"`
-	Type     string      `json:"type,omitempty"`
-	Class    string      `json:"class,omitempty"`
-	Size     int64       `json:"size,omitempty"`
-	Location string      `json:"location,omitempty"`
-	Fields   []Parameter `json:"fields,omitempty"`
+	Name      string      `json:"name,omitempty"`
+	Type      string      `json:"type,omitempty"`
+	Class     string      `json:"class,omitempty"`
+	Size      int64       `json:"size,omitempty"`
+	Direction string      `json:"direction,omitempty"`
+	Location  string      `json:"location,omitempty"`
+	Fields    []Parameter `json:"fields,omitempty"`
 }
 
 type PointerParameter struct {
@@ -92,13 +103,14 @@ type PointerParameter struct {
 }
 
 type ArrayParameter struct {
-	Name     string    `json:"name,omitempty"`
-	Type     string    `json:"type,omitempty"`
-	Class    string    `json:"class,omitempty"`
-	Size     int64     `json:"size,omitempty"`
-	Length   int64     `json:"count,omitempty"`
-	Location string    `json:"location,omitempty"`
-	ItemType Parameter `json:"items_type,omitemtpy"`
+	Name      string    `json:"name,omitempty"`
+	Type      string    `json:"type,omitempty"`
+	Class     string    `json:"class,omitempty"`
+	Size      int64     `json:"size,omitempty"`
+	Length    int64     `json:"count,omitempty"`
+	Location  string    `json:"location,omitempty"`
+	Direction string    `json:"direction,omitempty"`
+	ItemType  Parameter `json:"items_type,omitemtpy"`
 }
 
 type EnumParameter struct {
@@ -108,24 +120,27 @@ type EnumParameter struct {
 	Size      int64            `json:"size,omitempty"`
 	Location  string           `json:"location,omitempty"`
 	Length    int              `json:"count,omitempty"`
+	Direction string           `json:"direction,omitempty"`
 	Constants map[string]int64 `json:"constants,omitemtpy"`
 }
 
 // QualifiedParameter and BasicParameter are the same, but we are modeling after debug/dwarf
 type QualifiedParameter struct {
-	Name     string `json:"name,omitempty"`
-	Class    string `json:"class,omitempty"`
-	Type     string `json:"type,omitempty"`
-	Location string `json:"location,omitempty"`
-	Size     int64  `json:"size,omitempty"`
+	Name      string `json:"name,omitempty"`
+	Class     string `json:"class,omitempty"`
+	Type      string `json:"type,omitempty"`
+	Direction string `json:"direction,omitempty"`
+	Location  string `json:"location,omitempty"`
+	Size      int64  `json:"size,omitempty"`
 }
 
 type BasicParameter struct {
-	Name     string `json:"name,omitempty"`
-	Type     string `json:"type,omitempty"`
-	Class    string `json:"class,omitempty"`
-	Location string `json:"location,omitempty"`
-	Size     int64  `json:"size,omitempty"`
+	Name      string `json:"name,omitempty"`
+	Type      string `json:"type,omitempty"`
+	Class     string `json:"class,omitempty"`
+	Location  string `json:"location,omitempty"`
+	Direction string `json:"direction,omitempty"`
+	Size      int64  `json:"size,omitempty"`
 }
 
 // A Variable description is general and can also describe an underlying type

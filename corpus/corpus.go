@@ -104,11 +104,18 @@ func (c *Corpus) Parse(f *file.File) {
 
 			switch symbol.GetType() {
 			case "STT_FUNC":
-				entry, ok := lookup["functions"][symbol.GetName()]
-				if !ok {
-					continue
+
+				// First look if it's a call site
+				entry, ok := lookup["calls"][symbol.GetName()]
+				if ok {
+					c.parseFunction(f, symbol, &entry, true)
+				} else {
+					entry, ok := lookup["functions"][symbol.GetName()]
+					if !ok {
+						continue
+					}
+					c.parseFunction(f, symbol, &entry, false)
 				}
-				c.parseFunction(f, symbol, &entry)
 
 			case "STT_OBJECT":
 
@@ -123,11 +130,11 @@ func (c *Corpus) Parse(f *file.File) {
 }
 
 // parse a dynamic function symbol
-func (c *Corpus) parseFunction(f *file.File, symbol file.Symbol, entry *file.DwarfEntry) {
+func (c *Corpus) parseFunction(f *file.File, symbol file.Symbol, entry *file.DwarfEntry, isCallSite bool) {
 
 	switch f.GoArch() {
 	case "amd64":
-		newFunction := x86_64.ParseFunction(f, symbol, entry, c.Disasm)
+		newFunction := x86_64.ParseFunction(f, symbol, entry, c.Disasm, isCallSite)
 		loc := map[string]descriptor.LocationDescription{}
 		loc["function"] = newFunction
 		c.Locations = append(c.Locations, loc)
@@ -141,8 +148,8 @@ func (c *Corpus) parseVariable(f *file.File, symbol file.Symbol, entry *file.Dwa
 
 	switch f.GoArch() {
 	case "amd64":
-		// Don't allow variables without name or type
-		variable := x86_64.ParseVariable(f, symbol, entry)
+		// Don't allow variables without name or type (variables cannot be call sites)
+		variable := x86_64.ParseVariable(f, symbol, entry, false)
 		if !reflect.DeepEqual(variable, descriptor.VariableDescription{}) {
 			loc := map[string]descriptor.LocationDescription{}
 			loc["variable"] = variable

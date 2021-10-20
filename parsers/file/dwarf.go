@@ -183,8 +183,7 @@ func (f *FunctionEntry) GetComponents() []Component {
 
 	}
 
-	// Get the Return value - the "type" of
-	// TODO can we use := entry.Val(dwarf.AttrVarParam)
+	// Get the Return value - for a library this is the only export (unless a call site)
 	returnType, err := GetUnderlyingType(f.Entry, f.Data)
 	if returnType != nil && err != nil {
 		comps = append(comps, Component{Name: "return", Type: returnType.Common().Name,
