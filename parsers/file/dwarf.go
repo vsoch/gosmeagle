@@ -314,10 +314,7 @@ func ParseCallSites(d *dwarf.Data, callSites *[]CallSite, subprograms *map[dwarf
 				// TODO not sure how to look up location in location lists
 				//newEntry := FunctionEntry{Entry: &programEntry, Data: d}
 				//entries[newEntry.Name()] = &newEntry
-			} else {
-				fmt.Println(cs)
-			}
-			// TODO need to handle these tail calls!
+			} // TODO need to handle these tail calls!
 			// These are call sites with CallTailCall true, meaning we need
 			// another way to look them up, maybe the return PC?
 		}
