@@ -62,18 +62,22 @@ func Load(filename string) LoadedCorpus {
 func convertFunctionDescriptor(item interface{}) descriptor.FunctionDescription {
 	desc := descriptor.FunctionDescription{}
 	desc.Name = item.(map[string]interface{})["name"].(string)
-	params := item.(map[string]interface{})["parameters"].([]interface{})
 	desc.Parameters = []descriptor.Parameter{}
 	desc.Type = "Function"
-	for _, param := range params {
-		s := descriptor.FunctionParameter{}
-		mapstructure.Decode(param, &s)
-		sizeInt, err := strconv.ParseInt(param.(map[string]interface{})["size"].(string), 10, 64)
-		if err != nil {
-			log.Fatalf("Error converting string of size to int64: %x", err)
+
+	paramsection := item.(map[string]interface{})["parameters"]
+	if paramsection != nil {
+		params := paramsection.([]interface{})
+		for _, param := range params {
+			s := descriptor.FunctionParameter{}
+			mapstructure.Decode(param, &s)
+			sizeInt, err := strconv.ParseInt(param.(map[string]interface{})["size"].(string), 10, 64)
+			if err != nil {
+				log.Fatalf("Error converting string of size to int64: %x", err)
+			}
+			s.Size = sizeInt
+			desc.Parameters = append(desc.Parameters, s)
 		}
-		s.Size = sizeInt
-		desc.Parameters = append(desc.Parameters, s)
 	}
 	return desc
 }
