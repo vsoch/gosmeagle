@@ -58,6 +58,48 @@ func Load(filename string) LoadedCorpus {
 	return corp
 }
 
+// loadParameter loads a general parameter
+func loadParameter(param interface{}) descriptor.Parameter {
+
+	paramClass := param.(map[string]interface{})["class"]
+
+	switch paramClass {
+	case "Pointer":
+		return loadPointer(param)
+	case "Struct":
+		return loadStructure(param)
+	}
+
+	// Integer, Float
+	return loadFunctionParameter(param)
+}
+
+func loadFunctionParameter(param interface{}) descriptor.Parameter {
+	s := descriptor.FunctionParameter{}
+	mapstructure.Decode(param, &s)
+	sizeInt, err := strconv.ParseInt(param.(map[string]interface{})["size"].(string), 10, 64)
+	if err != nil {
+		log.Fatalf("Error converting string of size to int64: %x", err)
+	}
+	s.Size = sizeInt
+	return s
+}
+
+func loadPointer(param interface{}) descriptor.Parameter {
+
+	s := descriptor.PointerParameter{}
+	mapstructure.Decode(param, &s)
+	sizeInt, err := strconv.ParseInt(param.(map[string]interface{})["size"].(string), 10, 64)
+	if err != nil {
+		log.Fatalf("Error converting string of size to int64: %x", err)
+	}
+	indirections, err := strconv.ParseInt(param.(map[string]interface{})["indirections"].(string), 10, 64)
+	s.UnderlyingType = loadParameter(param.(map[string]interface{})["underlying_type"])
+	s.Size = sizeInt
+	s.Indirections = indirections
+	return s
+}
+
 // convertFunctionDescriptor converts to a function descriptor to
 func convertFunctionDescriptor(item interface{}) descriptor.FunctionDescription {
 	desc := descriptor.FunctionDescription{}
@@ -69,17 +111,38 @@ func convertFunctionDescriptor(item interface{}) descriptor.FunctionDescription 
 	if paramsection != nil {
 		params := paramsection.([]interface{})
 		for _, param := range params {
-			s := descriptor.FunctionParameter{}
-			mapstructure.Decode(param, &s)
-			sizeInt, err := strconv.ParseInt(param.(map[string]interface{})["size"].(string), 10, 64)
-			if err != nil {
-				log.Fatalf("Error converting string of size to int64: %x", err)
-			}
-			s.Size = sizeInt
-			desc.Parameters = append(desc.Parameters, s)
+			newParam := loadParameter(param)
+			desc.Parameters = append(desc.Parameters, newParam)
 		}
 	}
 	return desc
+}
+
+// loadStructure will load a structure
+func loadStructure(param interface{}) descriptor.Parameter {
+
+	s := descriptor.StructureParameter{}
+	mapstructure.Decode(param, &s)
+
+	// If we don't reset, the above will load nils
+	s.Fields = []descriptor.Parameter{}
+	sizeInt, err := strconv.ParseInt(param.(map[string]interface{})["size"].(string), 10, 64)
+	if err != nil {
+		log.Fatalf("Error converting string of size to int64: %x", err)
+	}
+	fieldsraw := param.(map[string]interface{})["fields"]
+	if fieldsraw != nil {
+		fields := fieldsraw.([]interface{})
+		for _, field := range fields {
+			newField := loadParameter(field)
+			if newField != nil {
+				s.Fields = append(s.Fields, newField)
+			}
+		}
+	}
+	s.Size = sizeInt
+	return s
+
 }
 
 // convertFunctionDescriptor converts to a function descriptor
