@@ -246,36 +246,46 @@ func ParseBasicType(c file.Component, d *dwarf.Data, symbol file.Symbol, indirec
 	switch c.RawType.(type) {
 	case *dwarf.IntType:
 		convert := c.RawType.(*dwarf.IntType)
-		return descriptor.BasicParameter{Size: convert.CommonType.Size(), Type: convert.CommonType.Name, Class: "Int", Direction: direction}
+		return descriptor.BasicParameter{Size: convert.CommonType.Size(), Type: convert.CommonType.Name, Class: "Int",
+			Direction: direction, Name: c.Name}
 	case *dwarf.FloatType:
 		convert := c.RawType.(*dwarf.FloatType)
-		return descriptor.BasicParameter{Size: convert.CommonType.Size(), Type: convert.CommonType.Name, Class: "Float", Direction: direction}
+		return descriptor.BasicParameter{Size: convert.CommonType.Size(), Type: convert.CommonType.Name, Class: "Float",
+			Direction: direction, Name: c.Name}
 	case *dwarf.UintType:
 		convert := c.RawType.(*dwarf.UintType)
-		return descriptor.BasicParameter{Size: convert.CommonType.Size(), Type: convert.CommonType.Name, Class: "Uint", Direction: direction}
+		return descriptor.BasicParameter{Size: convert.CommonType.Size(), Type: convert.CommonType.Name, Class: "Uint",
+			Direction: direction, Name: c.Name}
 	case *dwarf.UcharType:
 		convert := c.RawType.(*dwarf.UcharType)
-		return descriptor.BasicParameter{Size: convert.CommonType.Size(), Type: convert.CommonType.Name, Class: "Uchar", Direction: direction}
+		return descriptor.BasicParameter{Size: convert.CommonType.Size(), Type: convert.CommonType.Name, Class: "Uchar",
+			Direction: direction, Name: c.Name}
 	case *dwarf.CharType:
 		convert := c.RawType.(*dwarf.CharType)
-		return descriptor.BasicParameter{Size: convert.CommonType.Size(), Type: convert.CommonType.Name, Class: "Char", Direction: direction}
+		return descriptor.BasicParameter{Size: convert.CommonType.Size(), Type: convert.CommonType.Name, Class: "Char",
+			Direction: direction, Name: c.Name}
 	case *dwarf.ComplexType:
 		convert := c.RawType.(*dwarf.ComplexType)
-		return descriptor.BasicParameter{Size: convert.CommonType.Size(), Type: convert.CommonType.Name, Class: "Complex", Direction: direction}
+		return descriptor.BasicParameter{Size: convert.CommonType.Size(), Type: convert.CommonType.Name, Class: "Complex",
+			Direction: direction, Name: c.Name}
 	case *dwarf.BoolType:
 		convert := c.RawType.(*dwarf.BoolType)
-		return descriptor.BasicParameter{Size: convert.CommonType.Size(), Type: convert.CommonType.Name, Class: "Bool", Direction: direction}
+		return descriptor.BasicParameter{Size: convert.CommonType.Size(), Type: convert.CommonType.Name, Class: "Bool",
+			Direction: direction, Name: c.Name}
 	case *dwarf.UnspecifiedType:
 		convert := c.RawType.(*dwarf.UnspecifiedType)
-		return descriptor.BasicParameter{Size: convert.CommonType.Size(), Type: convert.CommonType.Name, Class: "Unspecified", Direction: direction}
+		return descriptor.BasicParameter{Size: convert.CommonType.Size(), Type: convert.CommonType.Name, Class: "Unspecified",
+			Direction: direction, Name: c.Name}
 	case *dwarf.AddrType:
 		convert := c.RawType.(*dwarf.AddrType)
-		return descriptor.BasicParameter{Size: convert.CommonType.Size(), Type: convert.CommonType.Name, Class: "Address", Direction: direction}
+		return descriptor.BasicParameter{Size: convert.CommonType.Size(), Type: convert.CommonType.Name, Class: "Address",
+			Direction: direction, Name: c.Name}
 	case *dwarf.PtrType:
 		return ParsePointerType(c, d, symbol, indirections, seen, a, isCallSite)
 	case *dwarf.BasicType:
 		convert := c.RawType.(*dwarf.BasicType)
-		return descriptor.BasicParameter{Size: convert.CommonType.Size(), Type: convert.CommonType.Name, Direction: direction}
+		return descriptor.BasicParameter{Size: convert.CommonType.Size(), Type: convert.CommonType.Name, Direction: direction,
+			Name: c.Name, Class: c.Class}
 	default:
 		log.Fatalf("Type not accounted for:", reflect.TypeOf(c.RawType))
 	}

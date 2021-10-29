@@ -145,3 +145,15 @@ d.StructCache[t.StructName] = t
 ```
 
 And then used in [parsers/x86_64/parse.go](parsers/x86_64/parse.go) to match a typedef (which only has name and type string) to a fully parsed struct (a struct, union, or class).
+
+
+### Docker
+
+You can also use docker:
+
+```bash
+$ docker build -t ghcr.io/vsoch/gosmeagle .
+```
+```bash
+$ docker run -it -v $PWD:/data ghcr.io/vsoch/gosmeagle parse /data/libtest.so
+```
