@@ -303,6 +303,11 @@ func ParseCallSites(d *dwarf.Data, callSites *[]CallSite, subprograms *map[dwarf
 				if name == "" {
 					name = programEntry.Val(dwarf.AttrName)
 				}
+
+				// Name can be nil, and then we just don't know
+				if name == nil {
+					continue
+				}
 				function, ok := functions[name.(string)]
 				if ok {
 					entries[name.(string)] = function
