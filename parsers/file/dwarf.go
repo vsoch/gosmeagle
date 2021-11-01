@@ -20,8 +20,10 @@ type DwarfEntry interface {
 type FunctionEntry struct {
 	Entry  *dwarf.Entry
 	Type   *dwarf.Type
-	Params []FormalParamEntry
+	Params []DwarfEntry
 	Data   *dwarf.Data
+	// TODO either need to get this linked with
+	FormalParamsLookup map[dwarf.Offset]*dwarf.Entry
 }
 
 // Preparing a call site to link to a function / caller
@@ -65,12 +67,15 @@ func GetUnderlyingType(entry *dwarf.Entry, data *dwarf.Data) (dwarf.Type, error)
 }
 
 // Expose data and type
-func (f *FunctionEntry) GetData() *dwarf.Data   { return f.Data }
-func (v *VariableEntry) GetData() *dwarf.Data   { return v.Data }
-func (f *FunctionEntry) GetType() *dwarf.Type   { return f.Type }
-func (v *VariableEntry) GetType() *dwarf.Type   { return v.Type }
-func (f *FunctionEntry) GetEntry() *dwarf.Entry { return f.Entry }
-func (v *VariableEntry) GetEntry() *dwarf.Entry { return v.Entry }
+func (f *FunctionEntry) GetData() *dwarf.Data      { return f.Data }
+func (v *VariableEntry) GetData() *dwarf.Data      { return v.Data }
+func (f *FormalParamEntry) GetData() *dwarf.Data   { return f.Data }
+func (f *FunctionEntry) GetType() *dwarf.Type      { return f.Type }
+func (v *VariableEntry) GetType() *dwarf.Type      { return v.Type }
+func (f *FormalParamEntry) GetType() *dwarf.Type   { return f.Type }
+func (f *FunctionEntry) GetEntry() *dwarf.Entry    { return f.Entry }
+func (v *VariableEntry) GetEntry() *dwarf.Entry    { return v.Entry }
+func (f *FormalParamEntry) GetEntry() *dwarf.Entry { return f.Entry }
 
 // Get the name of the entry or formal param
 func (f *FunctionEntry) Name() string {
@@ -84,6 +89,13 @@ func (f *FunctionEntry) Name() string {
 		return "anonymous"
 	}
 	return functionName.(string)
+}
+func (f *FormalParamEntry) Name() string {
+	name := f.Entry.Val(dwarf.AttrName)
+	if name != nil {
+		return name.(string)
+	}
+	return ""
 }
 
 // Variable components is just one for the variable
@@ -157,18 +169,31 @@ func GetStringType(t dwarf.Type) string {
 	return "Unknown"
 }
 
+func (f *FormalParamEntry) GetComponents() []Component { return []Component{} }
+
 // Function components are the associated fields
 func (f *FunctionEntry) GetComponents() []Component {
 
 	comps := []Component{}
 	for _, param := range f.Params {
+		entry := param.GetEntry()
+		paramName := entry.Val(dwarf.AttrName)
 
-		paramName := param.Entry.Val(dwarf.AttrName)
+		// If it's null, might just be a reference, check the lookup
 		if paramName == nil {
-			continue
+
+			paramOffset := entry.Val(dwarf.AttrType)
+			if paramOffset == nil {
+				continue
+			}
+			entry = f.FormalParamsLookup[paramOffset.(dwarf.Offset)]
+			paramName = entry.Val(dwarf.AttrName)
+			if paramName == nil {
+				continue
+			}
 		}
 
-		paramType, err := GetUnderlyingType(param.Entry, f.Data)
+		paramType, err := GetUnderlyingType(entry, f.Data)
 
 		// TODO do we need to remove const here?
 		// From Tim: Dyninst reconstructs CV qualifiers and packedness using DW_TAG_{const,packed,volatile}_type and then manually updating the name. It's a bit hacky, but see DwarfWalker::parseConstPackedVolatile
@@ -206,13 +231,16 @@ func ParseDwarf(dwf *dwarf.Data) map[string]map[string]DwarfEntry {
 
 	// keep track of last function to associate with formal parameters, and if found them
 	var functionEntry *dwarf.Entry
-	var params []FormalParamEntry
+	params := []DwarfEntry{}
 
 	// Save a cache of call sites, params, and subprogram locations
 	var callSite *dwarf.Entry
 	var callSites []CallSite
 	var callSiteParams []dwarf.Entry
 	subprograms := map[dwarf.Offset]dwarf.Entry{}
+
+	// We need to keep a lookup of formal params for references
+	formalParams := map[dwarf.Offset]*dwarf.Entry{}
 
 	for entry, err := entryReader.Next(); entry != nil; entry, err = entryReader.Next() {
 
@@ -255,14 +283,20 @@ func ParseDwarf(dwf *dwarf.Data) map[string]map[string]DwarfEntry {
 
 			// Reset params and set new function entry
 			functionEntry = entry
-			params = []FormalParamEntry{}
+			params = []DwarfEntry{}
 
 		// We match formal parameters to the last function (their parent)
 		case dwarf.TagFormalParameter:
 
 			// Skip formal params that don't have linked function
-			if functionEntry == nil {
-				continue
+			//			if functionEntry == nil {
+			//				continue
+			//			}
+			// Add named ones (not references) to the lookup
+			paramName := entry.Val(dwarf.AttrName)
+			if paramName != nil {
+				offset := entry.Val(dwarf.AttrType).(dwarf.Offset)
+				formalParams[offset] = entry
 			}
 			params = append(params, ParseFormalParameter(dwf, entry))
 
@@ -277,6 +311,12 @@ func ParseDwarf(dwf *dwarf.Data) map[string]map[string]DwarfEntry {
 	if functionEntry != nil {
 		newEntry := ParseFunction(dwf, functionEntry, params)
 		lookup["functions"][newEntry.Name()] = newEntry
+	}
+
+	// Add param lookup to each function
+	for name, entry := range lookup["functions"] {
+		entry.(*FunctionEntry).FormalParamsLookup = formalParams
+		lookup["functions"][name] = entry
 	}
 
 	// Match call sites to subprograms
@@ -328,12 +368,12 @@ func ParseCallSites(d *dwarf.Data, callSites *[]CallSite, subprograms *map[dwarf
 }
 
 // Populate a formal parameter
-func ParseFormalParameter(d *dwarf.Data, entry *dwarf.Entry) FormalParamEntry {
-	return FormalParamEntry{Entry: entry, Data: d}
+func ParseFormalParameter(d *dwarf.Data, entry *dwarf.Entry) DwarfEntry {
+	return &FormalParamEntry{Entry: entry, Data: d}
 }
 
 // Populate a function entry
-func ParseFunction(d *dwarf.Data, entry *dwarf.Entry, params []FormalParamEntry) DwarfEntry {
+func ParseFunction(d *dwarf.Data, entry *dwarf.Entry, params []DwarfEntry) DwarfEntry {
 	return &FunctionEntry{Entry: entry, Data: d, Params: params}
 }
 
