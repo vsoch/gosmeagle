@@ -288,15 +288,13 @@ func ParseDwarf(dwf *dwarf.Data) map[string]map[string]DwarfEntry {
 		// We match formal parameters to the last function (their parent)
 		case dwarf.TagFormalParameter:
 
-			// Skip formal params that don't have linked function
-			//			if functionEntry == nil {
-			//				continue
-			//			}
 			// Add named ones (not references) to the lookup
 			paramName := entry.Val(dwarf.AttrName)
 			if paramName != nil {
-				offset := entry.Val(dwarf.AttrType).(dwarf.Offset)
-				formalParams[offset] = entry
+				offset := entry.Val(dwarf.AttrType)
+				if offset != nil {
+					formalParams[offset.(dwarf.Offset)] = entry
+				}
 			}
 			params = append(params, ParseFormalParameter(dwf, entry))
 
