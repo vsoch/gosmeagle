@@ -18,10 +18,11 @@ type DwarfEntry interface {
 
 // Types that we need to parse
 type FunctionEntry struct {
-	Entry  *dwarf.Entry
-	Type   *dwarf.Type
-	Params []FormalParamEntry
-	Data   *dwarf.Data
+	Entry              *dwarf.Entry
+	Type               *dwarf.Type
+	Params             []FormalParamEntry
+	Data               *dwarf.Data
+	FormalParamsLookup map[dwarf.Offset]*dwarf.Entry
 }
 
 // Preparing a call site to link to a function / caller
@@ -32,10 +33,9 @@ type CallSite struct {
 
 // Types that we need to parse
 type VariableEntry struct {
-	Entry  *dwarf.Entry
-	Type   *dwarf.Type
-	Params []FormalParamEntry
-	Data   *dwarf.Data
+	Entry *dwarf.Entry
+	Type  *dwarf.Type
+	Data  *dwarf.Data
 }
 
 type FormalParamEntry struct {
@@ -162,13 +162,24 @@ func (f *FunctionEntry) GetComponents() []Component {
 
 	comps := []Component{}
 	for _, param := range f.Params {
+		entry := param.Entry
+		paramName := entry.Val(dwarf.AttrName)
 
-		paramName := param.Entry.Val(dwarf.AttrName)
+		// If it's null, might just be a reference, check the lookup
 		if paramName == nil {
-			continue
+
+			paramOffset := entry.Val(dwarf.AttrType)
+			if paramOffset == nil {
+				continue
+			}
+			entry = f.FormalParamsLookup[paramOffset.(dwarf.Offset)]
+			paramName = entry.Val(dwarf.AttrName)
+			if paramName == nil {
+				continue
+			}
 		}
 
-		paramType, err := GetUnderlyingType(param.Entry, f.Data)
+		paramType, err := GetUnderlyingType(entry, f.Data)
 
 		// TODO do we need to remove const here?
 		// From Tim: Dyninst reconstructs CV qualifiers and packedness using DW_TAG_{const,packed,volatile}_type and then manually updating the name. It's a bit hacky, but see DwarfWalker::parseConstPackedVolatile
@@ -206,13 +217,16 @@ func ParseDwarf(dwf *dwarf.Data) map[string]map[string]DwarfEntry {
 
 	// keep track of last function to associate with formal parameters, and if found them
 	var functionEntry *dwarf.Entry
-	var params []FormalParamEntry
+	params := []FormalParamEntry{}
 
 	// Save a cache of call sites, params, and subprogram locations
 	var callSite *dwarf.Entry
 	var callSites []CallSite
 	var callSiteParams []dwarf.Entry
 	subprograms := map[dwarf.Offset]dwarf.Entry{}
+
+	// We need to keep a lookup of formal params for references
+	formalParams := map[dwarf.Offset]*dwarf.Entry{}
 
 	for entry, err := entryReader.Next(); entry != nil; entry, err = entryReader.Next() {
 
@@ -260,9 +274,13 @@ func ParseDwarf(dwf *dwarf.Data) map[string]map[string]DwarfEntry {
 		// We match formal parameters to the last function (their parent)
 		case dwarf.TagFormalParameter:
 
-			// Skip formal params that don't have linked function
-			if functionEntry == nil {
-				continue
+			// Add named ones (not references) to the lookup
+			paramName := entry.Val(dwarf.AttrName)
+			if paramName != nil {
+				offset := entry.Val(dwarf.AttrType)
+				if offset != nil {
+					formalParams[offset.(dwarf.Offset)] = entry
+				}
 			}
 			params = append(params, ParseFormalParameter(dwf, entry))
 
@@ -277,6 +295,12 @@ func ParseDwarf(dwf *dwarf.Data) map[string]map[string]DwarfEntry {
 	if functionEntry != nil {
 		newEntry := ParseFunction(dwf, functionEntry, params)
 		lookup["functions"][newEntry.Name()] = newEntry
+	}
+
+	// Add param lookup to each function
+	for name, entry := range lookup["functions"] {
+		entry.(*FunctionEntry).FormalParamsLookup = formalParams
+		lookup["functions"][name] = entry
 	}
 
 	// Match call sites to subprograms
