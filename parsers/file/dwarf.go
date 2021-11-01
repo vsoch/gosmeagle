@@ -18,11 +18,10 @@ type DwarfEntry interface {
 
 // Types that we need to parse
 type FunctionEntry struct {
-	Entry  *dwarf.Entry
-	Type   *dwarf.Type
-	Params []DwarfEntry
-	Data   *dwarf.Data
-	// TODO either need to get this linked with
+	Entry              *dwarf.Entry
+	Type               *dwarf.Type
+	Params             []FormalParamEntry
+	Data               *dwarf.Data
 	FormalParamsLookup map[dwarf.Offset]*dwarf.Entry
 }
 
@@ -34,10 +33,9 @@ type CallSite struct {
 
 // Types that we need to parse
 type VariableEntry struct {
-	Entry  *dwarf.Entry
-	Type   *dwarf.Type
-	Params []FormalParamEntry
-	Data   *dwarf.Data
+	Entry *dwarf.Entry
+	Type  *dwarf.Type
+	Data  *dwarf.Data
 }
 
 type FormalParamEntry struct {
@@ -67,15 +65,12 @@ func GetUnderlyingType(entry *dwarf.Entry, data *dwarf.Data) (dwarf.Type, error)
 }
 
 // Expose data and type
-func (f *FunctionEntry) GetData() *dwarf.Data      { return f.Data }
-func (v *VariableEntry) GetData() *dwarf.Data      { return v.Data }
-func (f *FormalParamEntry) GetData() *dwarf.Data   { return f.Data }
-func (f *FunctionEntry) GetType() *dwarf.Type      { return f.Type }
-func (v *VariableEntry) GetType() *dwarf.Type      { return v.Type }
-func (f *FormalParamEntry) GetType() *dwarf.Type   { return f.Type }
-func (f *FunctionEntry) GetEntry() *dwarf.Entry    { return f.Entry }
-func (v *VariableEntry) GetEntry() *dwarf.Entry    { return v.Entry }
-func (f *FormalParamEntry) GetEntry() *dwarf.Entry { return f.Entry }
+func (f *FunctionEntry) GetData() *dwarf.Data   { return f.Data }
+func (v *VariableEntry) GetData() *dwarf.Data   { return v.Data }
+func (f *FunctionEntry) GetType() *dwarf.Type   { return f.Type }
+func (v *VariableEntry) GetType() *dwarf.Type   { return v.Type }
+func (f *FunctionEntry) GetEntry() *dwarf.Entry { return f.Entry }
+func (v *VariableEntry) GetEntry() *dwarf.Entry { return v.Entry }
 
 // Get the name of the entry or formal param
 func (f *FunctionEntry) Name() string {
@@ -89,13 +84,6 @@ func (f *FunctionEntry) Name() string {
 		return "anonymous"
 	}
 	return functionName.(string)
-}
-func (f *FormalParamEntry) Name() string {
-	name := f.Entry.Val(dwarf.AttrName)
-	if name != nil {
-		return name.(string)
-	}
-	return ""
 }
 
 // Variable components is just one for the variable
@@ -169,14 +157,12 @@ func GetStringType(t dwarf.Type) string {
 	return "Unknown"
 }
 
-func (f *FormalParamEntry) GetComponents() []Component { return []Component{} }
-
 // Function components are the associated fields
 func (f *FunctionEntry) GetComponents() []Component {
 
 	comps := []Component{}
 	for _, param := range f.Params {
-		entry := param.GetEntry()
+		entry := param.Entry
 		paramName := entry.Val(dwarf.AttrName)
 
 		// If it's null, might just be a reference, check the lookup
@@ -231,7 +217,7 @@ func ParseDwarf(dwf *dwarf.Data) map[string]map[string]DwarfEntry {
 
 	// keep track of last function to associate with formal parameters, and if found them
 	var functionEntry *dwarf.Entry
-	params := []DwarfEntry{}
+	params := []FormalParamEntry{}
 
 	// Save a cache of call sites, params, and subprogram locations
 	var callSite *dwarf.Entry
@@ -283,7 +269,7 @@ func ParseDwarf(dwf *dwarf.Data) map[string]map[string]DwarfEntry {
 
 			// Reset params and set new function entry
 			functionEntry = entry
-			params = []DwarfEntry{}
+			params = []FormalParamEntry{}
 
 		// We match formal parameters to the last function (their parent)
 		case dwarf.TagFormalParameter:
@@ -366,12 +352,12 @@ func ParseCallSites(d *dwarf.Data, callSites *[]CallSite, subprograms *map[dwarf
 }
 
 // Populate a formal parameter
-func ParseFormalParameter(d *dwarf.Data, entry *dwarf.Entry) DwarfEntry {
-	return &FormalParamEntry{Entry: entry, Data: d}
+func ParseFormalParameter(d *dwarf.Data, entry *dwarf.Entry) FormalParamEntry {
+	return FormalParamEntry{Entry: entry, Data: d}
 }
 
 // Populate a function entry
-func ParseFunction(d *dwarf.Data, entry *dwarf.Entry, params []DwarfEntry) DwarfEntry {
+func ParseFunction(d *dwarf.Data, entry *dwarf.Entry, params []FormalParamEntry) DwarfEntry {
 	return &FunctionEntry{Entry: entry, Data: d, Params: params}
 }
 
