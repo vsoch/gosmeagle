@@ -172,7 +172,11 @@ func (f *FunctionEntry) GetComponents() []Component {
 			if paramOffset == nil {
 				continue
 			}
-			entry = f.FormalParamsLookup[paramOffset.(dwarf.Offset)]
+			if newEntry, ok := f.FormalParamsLookup[paramOffset.(dwarf.Offset)]; !ok {
+				continue
+			} else {
+				entry = newEntry
+			}
 			paramName = entry.Val(dwarf.AttrName)
 			if paramName == nil {
 				continue
