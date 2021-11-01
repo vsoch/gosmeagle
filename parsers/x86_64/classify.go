@@ -216,7 +216,7 @@ func ClassifyBasic(c *file.Component, ptrCount *int64) Classification {
 
 	// Integral types
 	switch c.Class {
-	case "Uint", "Int", "Char", "Uchar":
+	case "Uint", "Int", "Char", "Uchar", "Basic":
 		if size > 128 {
 			return Classification{Lo: SSE, Hi: SSEUP, Name: "IntegerVec"}
 		}
@@ -259,8 +259,9 @@ func ClassifyBasic(c *file.Component, ptrCount *int64) Classification {
 
 	//case *dwarf.BasicType:
 
+	// TODO this should be Fatalf when this code is done
 	default:
-		log.Fatalf("Scalar classification type not accounted for:", c.Class)
+		log.Printf("Scalar classification type not accounted for:", c.Class)
 	}
-	return Classification{Lo: NO_CLASS, Hi: NO_CLASS, Name: "Unknown"}
+	return Classification{}
 }
