@@ -1,6 +1,7 @@
 package x86_64
 
 import (
+	"fmt"
 	"log"
 )
 
@@ -27,7 +28,7 @@ func (a *FramebaseAllocator) updateFramebaseFromSize(size int64) {
 // Get a framebase for a variable based on stack location and type
 // Framebase values must be 8 byte aligned.
 func (a *FramebaseAllocator) NextFramebaseFromSize(size int64) string {
-	result := "framebase+" + string(a.Framebase)
+	result := "framebase+" + fmt.Sprintf("%d", a.Framebase)
 
 	// Update the framebase for the next parameter based on the type
 	a.updateFramebaseFromSize(size)

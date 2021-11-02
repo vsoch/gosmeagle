@@ -81,7 +81,8 @@ func ParseParameter(c file.Component, d *dwarf.Data, symbol file.Symbol, indirec
 func ParseTypedef(c file.Component, symbol file.Symbol, indirections *int64, seen *map[string]file.Component, isCallSite bool) descriptor.Parameter {
 	convert := c.RawType.(*dwarf.TypedefType)
 	direction := GetDirection(convert.Name, isCallSite)
-	return descriptor.BasicParameter{Name: convert.Name, Size: convert.CommonType.Size(), Type: convert.Type.Common().Name, Direction: direction}
+	return descriptor.BasicParameter{Name: convert.Name, Size: convert.CommonType.Size(), Type: convert.Type.Common().Name,
+		Direction: direction, Class: "TypeDef"}
 }
 
 // ParseEnumType parses an enum type
