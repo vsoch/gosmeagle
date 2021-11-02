@@ -216,7 +216,7 @@ func ClassifyBasic(c *file.Component, ptrCount *int64) Classification {
 
 	// Integral types
 	switch c.Class {
-	case "Uint", "Int", "Char", "Uchar", "Basic":
+	case "Uint", "Int", "Char", "Uchar", "Basic", "Bool":
 		if size > 128 {
 			return Classification{Lo: SSE, Hi: SSEUP, Name: "IntegerVec"}
 		}
