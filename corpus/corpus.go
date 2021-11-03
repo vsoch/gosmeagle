@@ -77,12 +77,11 @@ func load(filename string) Corpus {
 
 func (c *Corpus) Parse(f *file.File) {
 
-	// Disassemble first for locations
+	// Disassemble first for locations (optional)
 	disasm, err := f.Disasm()
-	if err != nil {
-		log.Fatalf("Cannot disassemble binary: %x", err)
+	if err == nil {
+		c.Disasm = disasm
 	}
-	c.Disasm = disasm
 
 	// Prepare a symbol lookup for assembly and call sites - main, etc. won't be in dynamic symbol table
 	// asm := c.Disasm.GetGNUAssembly()
